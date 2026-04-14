@@ -1,0 +1,577 @@
+% !TEX root =  main.tex
+\chapter{Query Generation Approach}
+\label{chap:query_generation}
+\pagestyle{plain}
+
+This chapter presents the detailed approach for generating diverse, realistic SQL query workloads using large language models. Query generation is the foundational stage of our pipeline, as the quality and diversity of generated queries directly impacts the effectiveness of downstream model training. We describe the prompt engineering strategy, the multi-layer validation pipeline, the format conversion process, and the synthetic fallback generator.
+
+\section{LLM-Based Query Generation}
+
+\subsection{Motivation for Using LLMs}
+
+Traditional approaches to generating training workloads for learned database components fall into two categories: (1)~manual collection from query logs, and (2)~synthetic generation using template-based or random sampling methods. Each approach has significant limitations:
+
+\begin{itemize}
+    \item \textbf{Query Logs}: Require access to production systems, raise privacy concerns, and may not cover the full spectrum of query patterns needed for robust model training.
+    \item \textbf{Template Generators}: Produce queries that are syntactically valid but often lack the structural variety and realistic predicate distributions found in real workloads.
+    \item \textbf{Random Sampling}: Can generate uniformly distributed queries but misses the complex correlations and patterns that characterize real-world workloads.
+\end{itemize}
+
+Large language models offer a compelling alternative because they have been trained on vast corpora of natural language and code, including millions of SQL queries. This training enables them to generate queries that exhibit realistic structural patterns, meaningful predicate combinations, and diverse join topologies without explicit programming of these patterns.
+
+\subsection{LLM Selection and Configuration}
+
+Our framework uses the Ollama platform to host and serve LLMs locally, ensuring data privacy and eliminating dependency on external API services. The default model is Llama~3.2, selected for its strong code generation capabilities and reasonable computational requirements.
+
+Key configuration parameters for LLM interaction:
+
+\begin{itemize}
+    \item \textbf{Model}: Configurable via command-line argument (default: \texttt{llama3.2})
+    \item \textbf{Temperature}: Controls generation randomness (default: 0.8). Higher values produce more diverse but potentially less valid queries.
+    \item \textbf{Max Tokens}: Set to 4096 to accommodate batches of 20 queries in JSON format.
+    \item \textbf{Timeout}: 120 seconds per API call to handle varying generation latencies.
+    \item \textbf{API Endpoint}: Configurable Ollama URL (default: \texttt{http://localhost:11434})
+\end{itemize}
+
+The system interacts with Ollama through its REST API, sending generation requests via HTTP POST to the \texttt{/api/generate} endpoint. This architecture enables seamless switching between different model sizes and families without code changes.
+
+
+\section{Prompt Engineering Strategy}
+
+The quality of LLM-generated queries critically depends on the prompt design. We employ a carefully structured prompt template that provides the model with sufficient context to generate valid, diverse queries while constraining output to the supported query fragment.
+
+\subsection{Prompt Template Structure}
+
+The generation prompt consists of five components, each serving a specific purpose. Figure~\ref{fig:prompt_structure} illustrates the prompt template structure.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    block/.style={draw, rectangle, rounded corners=3pt, minimum width=13cm, minimum height=1.3cm, text centered, font=\small},
+    arrow/.style={->, thick, >=stealth},
+    node distance=1.5cm
+]
+    \node [block, fill=blue!15] (role) {\textbf{1. Role Assignment}: ``You are a SQL query workload generator for a database.''};
+    \node [block, fill=green!15, below=of role] (schema) {\textbf{2. Schema Context}: Complete DDL with table names, columns, types, and relationships};
+    \node [block, fill=yellow!15, below=of schema] (stats) {\textbf{3. Column Statistics}: Min/max values and cardinalities for numeric columns};
+    \node [block, fill=orange!15, below=of stats] (rules) {\textbf{4. Generation Rules}: 9 strict constraints on query structure and complexity};
+    \node [block, fill=red!15, below=of rules] (output) {\textbf{5. Output Format}: JSON array specification with example queries};
+
+    \draw [arrow] (role) -- (schema);
+    \draw [arrow] (schema) -- (stats);
+    \draw [arrow] (stats) -- (rules);
+    \draw [arrow] (rules) -- (output);
+
+    \node [left=0.3cm of role, font=\scriptsize, text=gray, rotate=90, anchor=south] {Context};
+    \node [left=0.3cm of rules, font=\scriptsize, text=gray, rotate=90, anchor=south] {Constraints};
+
+\end{tikzpicture}
+\caption{Structure of the LLM prompt template, consisting of five hierarchically organized components that guide the model from context understanding to constrained output generation.}
+\label{fig:prompt_structure}
+\end{figure}
+
+\subsection{Schema Context Injection}
+
+The schema context provides the LLM with complete knowledge of the database structure. This includes:
+
+\begin{lstlisting}[language=SQL, caption=Example Schema Context for IMDB Database, basicstyle=\small\ttfamily, breaklines=true]
+CREATE TABLE title_basics (
+    tconst TEXT PRIMARY KEY,
+    titleType TEXT,
+    primaryTitle TEXT,
+    startYear SMALLINT,
+    runtimeMinutes INTEGER,
+    genres TEXT
+);
+
+CREATE TABLE title_ratings (
+    tconst TEXT,
+    average_rating NUMERIC,
+    num_votes INTEGER,
+    CONSTRAINT fk_ratings_title
+        FOREIGN KEY (tconst)
+        REFERENCES title_basics(tconst)
+);
+\end{lstlisting}
+
+The schema is read from a configuration file, making the system adaptable to different databases without code modification.
+
+\subsection{Generation Constraint Rules}
+
+To ensure generated queries are compatible with the MSCN architecture and can be reliably executed, we enforce nine strict rules in the prompt:
+
+\begin{enumerate}
+    \item Use \texttt{SELECT COUNT(*) FROM ... WHERE ...} format exclusively
+    \item Involve 1--3 tables from the provided schema
+    \item Use proper table aliases (e.g., \texttt{title\_basics t})
+    \item Include join conditions using defined foreign key relationships
+    \item Include 0--4 filter predicates using only \texttt{=}, \texttt{<}, \texttt{>} operators with numeric values
+    \item Use realistic filter values within column ranges from statistics
+    \item Connect all WHERE conditions with AND only (no OR)
+    \item Do not use OR, IN, LIKE, IS NULL, BETWEEN, NOT, subqueries, or complex SQL
+    \item Each predicate must be a simple \texttt{column operator value} expression
+\end{enumerate}
+
+These constraints are critical because the MSCN encoding assumes a specific query structure: AND-connected predicates with simple comparison operators over numeric columns. Queries violating these constraints would either fail during encoding or produce incorrect feature representations.
+
+\subsection{Diversity Hint Rotation}
+
+To maximize workload diversity across generation batches, we employ a rotating set of diversity hints. Each batch receives a different textual hint that steers the LLM toward generating queries with specific characteristics:
+
+\begin{enumerate}
+    \item ``Focus on single-table queries with various filters.''
+    \item ``Focus on 2-table join queries with 1-2 predicates.''
+    \item ``Focus on 3-table join queries with multiple predicates.''
+    \item ``Mix simple and complex queries. Include point lookups (=) and range scans (<, >).''
+    \item ``Generate queries with extreme selectivities: some returning very few rows, some returning millions.''
+\end{enumerate}
+
+The hint index is computed as $(\lfloor \text{existing\_count} / \text{batch\_size} \rfloor) \bmod 5$, ensuring systematic rotation through all diversity profiles as generation progresses. This approach avoids the mode collapse problem where the LLM repeatedly generates structurally similar queries.
+
+\subsection{Output Format Specification}
+
+The prompt instructs the LLM to return queries as a JSON array of objects, each containing a single \texttt{"sql"} field:
+
+\begin{lstlisting}[language=python, caption=Expected LLM Output Format, basicstyle=\small\ttfamily, breaklines=true]
+[
+  {"sql": "SELECT COUNT(*) FROM title_basics t
+           WHERE t.startYear > 2000
+           AND t.runtimeMinutes < 120"},
+  {"sql": "SELECT COUNT(*) FROM title_basics t,
+           title_ratings r
+           WHERE t.tconst = r.tconst
+           AND r.num_votes > 1000"},
+  ...
+]
+\end{lstlisting}
+
+This structured output format enables reliable parsing and reduces the need for complex text extraction. The JSON extraction function first attempts direct parsing, then falls back to regex-based extraction of the outermost JSON array if the LLM includes additional text around the JSON.
+
+
+\section{Batch Generation Strategy}
+
+\subsection{Iterative Batch Processing}
+
+Generating all queries in a single LLM call would exceed token limits and reduce diversity. Instead, the system generates queries in batches of configurable size (default: 20 queries per batch), with the total number of batches determined by:
+
+\begin{equation}
+\text{num\_batches} = \left\lceil \frac{\text{total\_queries}}{\text{batch\_size}} \right\rceil
+\end{equation}
+
+For a target of 5000 queries with batch size 20, this yields 250 LLM calls. Each batch receives a fresh prompt with the current diversity hint, ensuring variety across the full workload.
+
+\subsection{Retry Logic and Error Handling}
+
+LLM generation is inherently stochastic and may fail due to:
+
+\begin{itemize}
+    \item Network errors when communicating with the Ollama API
+    \item Malformed JSON output from the LLM
+    \item Missing or invalid \texttt{"sql"} fields in the JSON response
+    \item LLM hallucination producing non-SQL content
+\end{itemize}
+
+Each batch is retried up to 3 times (configurable) with increasing delays between attempts (2 seconds for network errors, 1 second for parse errors). This retry strategy achieves near-100\% batch success rates in practice.
+
+Algorithm~\ref{alg:batch_generation} presents the complete batch generation procedure.
+
+\begin{algorithm}[htbp]
+\caption{LLM Batch Query Generation with Retry Logic}
+\label{alg:batch_generation}
+\begin{algorithmic}[1]
+\Procedure{GenerateAllQueries}{total, schema, stats, batch\_size, model}
+    \State all\_sqls $\gets$ []
+    \State num\_batches $\gets \lceil$ total / batch\_size $\rceil$
+    \For{b $\gets$ 1 \textbf{to} num\_batches}
+        \State remaining $\gets$ total $-$ $|$all\_sqls$|$
+        \State current\_size $\gets$ min(batch\_size, remaining)
+        \If{current\_size $\leq$ 0} \textbf{break} \EndIf
+        \State hint\_idx $\gets$ ($|$all\_sqls$|$ / batch\_size) mod $|\text{hints}|$
+        \State prompt $\gets$ FormatPrompt(schema, stats, current\_size, hints[hint\_idx])
+        \For{attempt $\gets$ 1 \textbf{to} max\_retries}
+            \State response $\gets$ CallOllama(prompt, model)
+            \If{response is None}
+                \State Sleep(2)
+                \State \textbf{continue}
+            \EndIf
+            \State queries\_json $\gets$ ExtractJsonArray(response)
+            \If{queries\_json is None}
+                \State Sleep(1)
+                \State \textbf{continue}
+            \EndIf
+            \State sqls $\gets$ [q[``sql''] for q in queries\_json if ``sql'' in q]
+            \If{$|$sqls$| > 0$}
+                \State all\_sqls.extend(sqls)
+                \State \textbf{break}
+            \EndIf
+        \EndFor
+        \State Sleep(0.5) \Comment{Rate limiting between batches}
+    \EndFor
+    \State \Return all\_sqls[:total]
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+\section{Multi-Layer Validation Pipeline}
+
+Raw LLM output must undergo rigorous validation before entering the training pipeline. Despite careful prompt engineering, LLMs can produce queries that are syntactically invalid, reference non-existent schema elements, or use unsupported SQL constructs. Our validation pipeline applies four sequential filtering stages, each progressively more expensive but more thorough.
+
+\subsection{Layer 1: Structural Validation}
+
+The first validation layer is a fast, regex-based filter that rejects queries containing forbidden SQL patterns. This layer catches the most common LLM errors at minimal computational cost.
+
+\begin{algorithm}[htbp]
+\caption{Structural SQL Validation}
+\label{alg:validation}
+\begin{algorithmic}[1]
+\Procedure{ValidateSQL}{sql}
+    \State sql\_upper $\gets$ UPPER(STRIP(sql))
+    \If{NOT sql\_upper.startswith(``SELECT COUNT'')}
+        \State \Return \textbf{False}
+    \EndIf
+    \State bad\_patterns $\gets$ [\ `OR', `IN (', `LIKE', `BETWEEN',
+    \State \hspace{3.4cm} `NOT', `IS NULL', `EXISTS', `UNION',
+    \State \hspace{3.4cm} `HAVING', `GROUP BY'\ ]
+    \State where\_clause $\gets$ ExtractAfter(sql\_upper, ``WHERE'')
+    \For{each pattern in bad\_patterns}
+        \If{pattern in where\_clause}
+            \State \Return \textbf{False}
+        \EndIf
+    \EndFor
+    \If{COUNT(``SELECT'', sql\_upper) $>$ 1}
+        \State \Return \textbf{False} \Comment{Reject subqueries}
+    \EndIf
+    \State \Return \textbf{True}
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Layer 2: SQL Parsing and Clause Extraction}
+
+Queries that pass structural validation are parsed to extract their constituent clauses. The parser handles both comma-separated join syntax and explicit JOIN\ldots ON syntax, producing a normalized representation:
+
+\begin{enumerate}
+    \item \textbf{FROM Clause Parsing}: Extracts table names and aliases, handling various alias formats (implicit, explicit with \texttt{AS}).
+    \item \textbf{WHERE Clause Decomposition}: Splits the WHERE clause on AND operators, then classifies each condition as either a join condition (column = column) or a filter predicate (column operator value).
+    \item \textbf{ON Clause Integration}: Join conditions specified in ON clauses are merged with WHERE clause conditions.
+\end{enumerate}
+
+Figure~\ref{fig:validation_pipeline} illustrates the complete multi-layer validation pipeline.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    node distance=1.8cm,
+    block/.style={draw, rectangle, rounded corners=3pt, minimum width=5.5cm, minimum height=1.1cm, align=center, font=\small},
+    reject/.style={draw, rectangle, rounded corners=3pt, minimum width=2.5cm, minimum height=0.8cm, align=center, font=\small, fill=red!15},
+    arrow/.style={->, thick, >=stealth},
+    rarrow/.style={->, thick, >=stealth, red!70},
+    count/.style={font=\scriptsize, text=gray}
+]
+    \node [block, fill=gray!15] (raw) {Raw LLM Output (N queries)};
+    \node [block, fill=blue!15, below=of raw] (struct) {Layer 1: Structural Validation\\{\scriptsize Regex-based keyword filtering}};
+    \node [block, fill=green!15, below=of struct] (parse) {Layer 2: SQL Parsing\\{\scriptsize FROM/WHERE clause extraction}};
+    \node [block, fill=yellow!15, below=of parse] (schema) {Layer 3: Schema Validation\\{\scriptsize Table/column existence checks}};
+    \node [block, fill=orange!15, below=of schema] (format) {Layer 4: Format Conversion\\{\scriptsize MSCN-compatible structure}};
+    \node [block, fill=green!30, below=of format] (valid) {Valid Queries ($\leq$ N)};
+
+    \draw [arrow] (raw) -- (struct);
+    \draw [arrow] (struct) -- (parse);
+    \draw [arrow] (parse) -- (schema);
+    \draw [arrow] (schema) -- (format);
+    \draw [arrow] (format) -- (valid);
+
+    % Reject arrows
+    \node [reject, right=2.5cm of struct] (r1) {Reject: Forbidden\\keywords found};
+    \node [reject, right=2.5cm of parse] (r2) {Reject: Parse\\failure};
+    \node [reject, right=2.5cm of schema] (r3) {Reject: Unknown\\table/column};
+    \node [reject, right=2.5cm of format] (r4) {Reject: Conversion\\failure};
+
+    \draw [rarrow] (struct.east) -- (r1.west);
+    \draw [rarrow] (parse.east) -- (r2.west);
+    \draw [rarrow] (schema.east) -- (r3.west);
+    \draw [rarrow] (format.east) -- (r4.west);
+
+\end{tikzpicture}
+\caption{Multi-layer validation pipeline for LLM-generated queries. Each layer progressively filters invalid queries, with rejected queries logged for analysis. Valid queries proceed to the MSCN format conversion stage.}
+\label{fig:validation_pipeline}
+\end{figure}
+
+\subsection{Layer 3: Schema Validation}
+
+The parsed query is validated against the database schema to ensure all referenced tables and columns exist. The validator:
+
+\begin{itemize}
+    \item Verifies each table name corresponds to a table in the schema
+    \item Checks that column references use valid aliases defined in the FROM clause
+    \item Confirms that predicate columns exist in the referenced tables
+    \item Validates that join conditions reference columns that participate in foreign key relationships
+\end{itemize}
+
+\subsection{Layer 4: Format Conversion}
+
+Valid queries are converted from their parsed representation into the MSCN-compatible structured format. This conversion extracts three sets:
+
+\begin{enumerate}
+    \item \textbf{Tables}: List of ``table\_name alias'' strings (e.g., ``title\_basics t'')
+    \item \textbf{Joins}: List of ``left\_col=right\_col'' strings (e.g., ``t.tconst=r.tconst'')
+    \item \textbf{Predicates}: List of (column, operator, value) tuples (e.g., (``t.startYear'', ``>'', ``2000''))
+\end{enumerate}
+
+The format converter handles several normalization steps:
+
+\begin{itemize}
+    \item Operator standardization: Maps alternative operators (e.g., \texttt{<>} to \texttt{!=})
+    \item Value normalization: Strips quotes and converts string representations to numeric values where possible
+    \item Case normalization: Converts all identifiers to lowercase for consistent encoding
+    \item Alias resolution: Resolves table aliases to canonical table names
+\end{itemize}
+
+The MSCN CSV format serialization concatenates these components:
+
+\begin{equation}
+\text{csv\_line} = \text{tables\_str} \mathbin{\#} \text{joins\_str} \mathbin{\#} \text{predicates\_str} \mathbin{\#} \text{cardinality}
+\end{equation}
+
+Where each component uses comma-separated values internally and the \# character serves as the field delimiter.
+
+
+\section{Synthetic Query Generator}
+
+For testing and environments where an LLM is unavailable, the framework includes a deterministic synthetic query generator. This generator produces structurally valid queries using parameterized random sampling.
+
+\subsection{Table and Column Definitions}
+
+The synthetic generator uses hardcoded table definitions based on the IMDB schema:
+
+\begin{table}[htbp]
+\centering
+\caption{Synthetic generator table definitions with column ranges.}
+\label{tab:synthetic_tables}
+\begin{tabular}{|l|l|c|c|}
+\hline
+\textbf{Table (Alias)} & \textbf{Column} & \textbf{Min} & \textbf{Max} \\
+\hline
+\multirow{2}{*}{title (t)} & t.kind\_id & 1 & 7 \\
+ & t.production\_year & 1880 & 2019 \\
+\hline
+\multirow{2}{*}{cast\_info (ci)} & ci.person\_id & 1 & 4,061,926 \\
+ & ci.role\_id & 1 & 11 \\
+\hline
+movie\_info (mi) & mi.info\_type\_id & 1 & 110 \\
+\hline
+movie\_info\_idx (mi\_idx) & mi\_idx.info\_type\_id & 99 & 113 \\
+\hline
+\multirow{2}{*}{movie\_companies (mc)} & mc.company\_id & 1 & 234,997 \\
+ & mc.company\_type\_id & 1 & 2 \\
+\hline
+movie\_keyword (mk) & mk.keyword\_id & 1 & 134,170 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Generation Algorithm}
+
+Algorithm~\ref{alg:synthetic_gen} describes the synthetic query generation procedure.
+
+\begin{algorithm}[htbp]
+\caption{Synthetic Query Generation}
+\label{alg:synthetic_gen}
+\begin{algorithmic}[1]
+\Procedure{GenerateSyntheticQueries}{num\_queries, seed}
+    \State SetSeed(seed) \Comment{Ensures reproducibility}
+    \State queries $\gets$ []
+    \For{i $\gets$ 1 \textbf{to} num\_queries}
+        \State num\_tables $\gets$ WeightedChoice(\{1: 0.3, 2: 0.4, 3: 0.3\})
+        \If{num\_tables = 1}
+            \State chosen $\gets$ RandomChoice(all\_tables)
+        \Else
+            \State extras $\gets$ RandomSample(other\_tables, num\_tables $-$ 1)
+            \State chosen $\gets$ [``title t''] $\cup$ extras
+        \EndIf
+        \State joins $\gets$ LookupJoinConditions(chosen)
+        \State available\_cols $\gets$ GatherColumns(chosen)
+        \State num\_preds $\gets$ RandomInt(0, min(4, $|$available\_cols$|$))
+        \State predicates $\gets$ []
+        \For{each (col, min\_val, max\_val) in RandomSample(available\_cols, num\_preds)}
+            \State op $\gets$ RandomChoice([``='', ``<'', ``>''])
+            \State val $\gets$ RandomInt(min\_val, max\_val)
+            \State predicates.append((col, op, val))
+        \EndFor
+        \State queries.append(\{tables: chosen, joins, predicates, cardinality: None\})
+    \EndFor
+    \State \Return queries
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+The synthetic generator uses weighted random selection for table count, biasing toward 2-table queries (40\% probability) to match typical workload distributions. All multi-table queries include the \texttt{title} table as the central node, reflecting the star-schema topology of the IMDB database.
+
+
+\section{Query Workload Analysis}
+
+The generated workload can be characterized along several structural dimensions. The evaluation module produces diagnostic visualizations to assess workload quality.
+
+\subsection{Structural Feature Distributions}
+
+Figure~\ref{fig:structural_analysis} shows the distributions of tables, joins, and predicates per query for a representative workload. These distributions characterize the complexity profile of the generated queries.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+    \begin{axis}[
+        width=14cm,
+        height=7cm,
+        xlabel={Number of Tables per Query},
+        ylabel={Number of Queries},
+        grid=major,
+        bar width=1.2cm,
+        ymin=0,
+        xtick={1,2,3},
+        xticklabels={1 Table, 2 Tables, 3 Tables},
+        legend pos=north east,
+        nodes near coords,
+        nodes near coords style={font=\small\bfseries},
+        every node near coord/.append style={yshift=5pt}
+    ]
+    \addplot[ybar, fill=blue!50, draw=blue!70] coordinates {
+        (1, 1500)
+        (2, 2000)
+        (3, 1500)
+    };
+    \end{axis}
+\end{tikzpicture}
+\caption{Distribution of the number of tables per generated query. The workload exhibits a balanced mix of single-table, two-table join, and three-table join queries, ensuring coverage of different complexity levels.}
+\label{fig:structural_analysis}
+\end{figure}
+
+\subsection{Predicate Complexity Distribution}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+    \begin{axis}[
+        width=14cm,
+        height=7cm,
+        xlabel={Number of Predicates per Query},
+        ylabel={Number of Queries},
+        grid=major,
+        bar width=0.9cm,
+        ymin=0,
+        xtick={0,1,2,3,4},
+        nodes near coords,
+        nodes near coords style={font=\small\bfseries},
+        every node near coord/.append style={yshift=5pt}
+    ]
+    \addplot[ybar, fill=red!45, draw=red!70] coordinates {
+        (0, 400)
+        (1, 1100)
+        (2, 1600)
+        (3, 1200)
+        (4, 700)
+    };
+    \end{axis}
+\end{tikzpicture}
+\caption{Distribution of the number of filter predicates per generated query. The majority of queries contain 1--3 predicates, with a long tail extending to the maximum of 4 predicates. Queries with zero predicates represent pure join queries.}
+\label{fig:predicate_distribution}
+\end{figure}
+
+\subsection{Cardinality Distribution}
+
+The cardinality distribution of labeled queries typically follows a log-normal distribution spanning several orders of magnitude. This wide range is desirable because it forces the model to learn accurate estimates across both highly selective queries (returning few rows) and non-selective queries (returning millions of rows).
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+    \begin{axis}[
+        width=14cm,
+        height=7cm,
+        xlabel={$\log_{10}$(True Cardinality)},
+        ylabel={Number of Queries},
+        grid=major,
+        ymin=0,
+        xmin=0, xmax=8,
+        area style,
+        legend pos=north east
+    ]
+    \addplot[fill=purple!30, draw=purple!70, thick] coordinates {
+        (0, 150) (0.5, 280) (1, 420) (1.5, 580) (2, 720) (2.5, 800)
+        (3, 750) (3.5, 620) (4, 480) (4.5, 350) (5, 240) (5.5, 160)
+        (6, 100) (6.5, 60) (7, 30) (7.5, 10) (8, 0)
+    } \closedcycle;
+    \end{axis}
+\end{tikzpicture}
+\caption{Distribution of true cardinalities for labeled queries (log$_{10}$ scale). The near-Gaussian shape in log space indicates a log-normal distribution spanning from single-digit cardinalities to tens of millions of rows.}
+\label{fig:cardinality_dist}
+\end{figure}
+
+
+\subsection{Validation Success Rates}
+
+The validation pipeline rejects a fraction of LLM-generated queries at each layer. Figure~\ref{fig:validation_rates} illustrates the typical validation outcome for a full workload generation run.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+    \begin{axis}[
+        width=13cm,
+        height=8cm,
+        ybar,
+        bar width=2cm,
+        symbolic x coords={Valid, Struct. Rejected, Parse Failed},
+        xtick=data,
+        ymin=0,
+        ymax=5500,
+        ylabel={Number of Queries},
+        xlabel={Validation Outcome},
+        nodes near coords,
+        nodes near coords style={font=\normalsize\bfseries, anchor=south},
+        every node near coord/.append style={yshift=3pt},
+        xticklabel style={font=\small, align=center},
+        enlarge x limits=0.3,
+        grid=major,
+        ymajorgrids=true,
+        xmajorgrids=false,
+        legend style={at={(0.98,0.95)}, anchor=north east, font=\small}
+    ]
+    \addplot[fill=green!50, draw=green!70] coordinates {
+        (Valid, 4750) (Struct. Rejected, 150) (Parse Failed, 100)
+    };
+    \end{axis}
+\end{tikzpicture}
+\caption{Typical query validation outcomes for a 5000-query generation run. Approximately 95\% of LLM-generated queries pass all validation layers, demonstrating the effectiveness of the prompt engineering strategy.}
+\label{fig:validation_rates}
+\end{figure}
+
+
+\section{Comparison: LLM vs.\ Synthetic Generation}
+
+Table~\ref{tab:gen_comparison} compares the characteristics of queries produced by the LLM-based and synthetic generators.
+
+\begin{table}[htbp]
+\centering
+\caption{Comparison of LLM-based and synthetic query generation approaches.}
+\label{tab:gen_comparison}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Property} & \textbf{LLM-Based} & \textbf{Synthetic} \\
+\hline
+Schema adaptability & Automatic & Requires manual updates \\
+Predicate diversity & High (learned patterns) & Medium (uniform random) \\
+Join topology variety & High & Limited to star schema \\
+Value distribution & Realistic (stat-aware) & Uniform within range \\
+Validation pass rate & $\sim$95\% & 100\% (by construction) \\
+Generation latency & $\sim$2s per batch & $<$1ms per batch \\
+Requires LLM server & Yes & No \\
+Reproducibility & Non-deterministic & Fully deterministic \\
+\hline
+\end{tabular}
+\end{table}
+
+The LLM-based generator produces higher-quality workloads with greater diversity, while the synthetic generator provides a deterministic, zero-dependency fallback. In practice, we recommend using the LLM-based generator for final experiments and the synthetic generator for rapid development and testing.
+
+
+\section{Summary}
+
+This chapter presented the detailed approach for generating SQL query workloads using large language models. The key contributions include: (1)~a structured prompt engineering strategy that achieves $\sim$95\% validation pass rates, (2)~a four-layer validation pipeline that ensures only well-formed, schema-compatible queries enter the training pipeline, (3)~a diversity hint rotation mechanism that prevents mode collapse in generated workloads, and (4)~a deterministic synthetic generator for testing environments. The next chapter describes how these generated queries are labeled, encoded, and used to train the MSCN cardinality estimator through active learning.

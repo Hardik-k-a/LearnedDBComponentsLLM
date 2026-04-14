@@ -1,0 +1,127 @@
+\babel@toc {english}{}\relax 
+\babel@toc {ngerman}{}\relax 
+\babel@toc {english}{}\relax 
+\contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Problem Statement}{1}{section.1.1}%
+\contentsline {section}{\numberline {1.2}Proposed Approach}{1}{section.1.2}%
+\contentsline {section}{\numberline {1.3}Contributions}{2}{section.1.3}%
+\contentsline {chapter}{\numberline {2}Background}{3}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Learned Database Systems and Cardinality Estimation}{3}{section.2.1}%
+\contentsline {section}{\numberline {2.2}MSCN and Deep Learning-based Estimation}{3}{section.2.2}%
+\contentsline {section}{\numberline {2.3}Workload Sensitivity and Challenges}{4}{section.2.3}%
+\contentsline {section}{\numberline {2.4}LLM-based SQL Generation}{5}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Generative AI for Database Components}{5}{section.2.5}%
+\contentsline {section}{\numberline {2.6}Active Learning for Data Efficiency}{6}{section.2.6}%
+\contentsline {section}{\numberline {2.7}Data Diversity, Personas, and KL Divergence}{6}{section.2.7}%
+\contentsline {section}{\numberline {2.8}System Perspective: Ollama and Practical Deployment}{7}{section.2.8}%
+\contentsline {section}{\numberline {2.9}Summary and Motivation}{7}{section.2.9}%
+\contentsline {chapter}{\numberline {3}Related Work}{8}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Learned Cardinality Estimation}{8}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Workload Characteristics and Model Generalization}{8}{section.3.2}%
+\contentsline {section}{\numberline {3.3}LLM-based SQL Workload Generation}{9}{section.3.3}%
+\contentsline {section}{\numberline {3.4}Generative AI for Training Database Components}{9}{section.3.4}%
+\contentsline {section}{\numberline {3.5}Active Learning for Efficient Data Utilization}{10}{section.3.5}%
+\contentsline {section}{\numberline {3.6}Data Diversity and Distribution Alignment}{10}{section.3.6}%
+\contentsline {section}{\numberline {3.7}Positioning of the Proposed Approach}{11}{section.3.7}%
+\contentsline {chapter}{\numberline {4}Approach}{12}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Problem Statement and Motivation}{12}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Design Principles}{13}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Schema Agnosticism}{13}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Modularity and Extensibility}{13}{subsection.4.2.2}%
+\contentsline {subsection}{\numberline {4.2.3}Robustness and Fault Tolerance}{13}{subsection.4.2.3}%
+\contentsline {subsection}{\numberline {4.2.4}Reproducibility}{14}{subsection.4.2.4}%
+\contentsline {section}{\numberline {4.3}System Architecture Overview}{14}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Pipeline Stages}{15}{section.4.4}%
+\contentsline {subsection}{\numberline {4.4.1}Stage 1: LLM-Based Query Generation}{15}{subsection.4.4.1}%
+\contentsline {subsection}{\numberline {4.4.2}Stage 2: Query Validation and Format Conversion}{15}{subsection.4.4.2}%
+\contentsline {subsection}{\numberline {4.4.3}Stage 3: Database Labeling}{16}{subsection.4.4.3}%
+\contentsline {subsection}{\numberline {4.4.4}Stage 4: Feature Extraction and Bitmap Generation}{16}{subsection.4.4.4}%
+\contentsline {subsection}{\numberline {4.4.5}Stage 5: Active Learning Loop}{17}{subsection.4.4.5}%
+\contentsline {subsection}{\numberline {4.4.6}Stage 6: Evaluation and Visualization}{17}{subsection.4.4.6}%
+\contentsline {section}{\numberline {4.5}Dataset and Experimental Configuration}{18}{section.4.5}%
+\contentsline {subsection}{\numberline {4.5.1}The IMDB Dataset}{18}{subsection.4.5.1}%
+\contentsline {subsection}{\numberline {4.5.2}Default Hyperparameters}{18}{subsection.4.5.2}%
+\contentsline {section}{\numberline {4.6}Workflow Execution}{18}{section.4.6}%
+\contentsline {section}{\numberline {4.7}Summary}{18}{section.4.7}%
+\contentsline {chapter}{\numberline {5}Query Generation Approach}{21}{chapter.5}%
+\contentsline {section}{\numberline {5.1}LLM-Based Query Generation}{21}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Motivation for Using LLMs}{21}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}LLM Selection and Configuration}{21}{subsection.5.1.2}%
+\contentsline {section}{\numberline {5.2}Prompt Engineering Strategy}{22}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}Prompt Template Structure}{22}{subsection.5.2.1}%
+\contentsline {subsection}{\numberline {5.2.2}Schema Context Injection}{22}{subsection.5.2.2}%
+\contentsline {subsection}{\numberline {5.2.3}Generation Constraint Rules}{24}{subsection.5.2.3}%
+\contentsline {subsection}{\numberline {5.2.4}Diversity Hint Rotation}{24}{subsection.5.2.4}%
+\contentsline {subsection}{\numberline {5.2.5}Output Format Specification}{24}{subsection.5.2.5}%
+\contentsline {section}{\numberline {5.3}Batch Generation Strategy}{25}{section.5.3}%
+\contentsline {subsection}{\numberline {5.3.1}Iterative Batch Processing}{25}{subsection.5.3.1}%
+\contentsline {subsection}{\numberline {5.3.2}Retry Logic and Error Handling}{25}{subsection.5.3.2}%
+\contentsline {section}{\numberline {5.4}Multi-Layer Validation Pipeline}{27}{section.5.4}%
+\contentsline {subsection}{\numberline {5.4.1}Layer 1: Structural Validation}{27}{subsection.5.4.1}%
+\contentsline {subsection}{\numberline {5.4.2}Layer 2: SQL Parsing and Clause Extraction}{27}{subsection.5.4.2}%
+\contentsline {subsection}{\numberline {5.4.3}Layer 3: Schema Validation}{28}{subsection.5.4.3}%
+\contentsline {subsection}{\numberline {5.4.4}Layer 4: Format Conversion}{28}{subsection.5.4.4}%
+\contentsline {section}{\numberline {5.5}Synthetic Query Generator}{28}{section.5.5}%
+\contentsline {subsection}{\numberline {5.5.1}Table and Column Definitions}{30}{subsection.5.5.1}%
+\contentsline {subsection}{\numberline {5.5.2}Generation Algorithm}{30}{subsection.5.5.2}%
+\contentsline {section}{\numberline {5.6}Query Workload Analysis}{30}{section.5.6}%
+\contentsline {subsection}{\numberline {5.6.1}Structural Feature Distributions}{30}{subsection.5.6.1}%
+\contentsline {subsection}{\numberline {5.6.2}Predicate Complexity Distribution}{30}{subsection.5.6.2}%
+\contentsline {subsection}{\numberline {5.6.3}Cardinality Distribution}{30}{subsection.5.6.3}%
+\contentsline {subsection}{\numberline {5.6.4}Validation Success Rates}{33}{subsection.5.6.4}%
+\contentsline {section}{\numberline {5.7}Comparison: LLM vs.\ Synthetic Generation}{33}{section.5.7}%
+\contentsline {section}{\numberline {5.8}Summary}{34}{section.5.8}%
+\contentsline {chapter}{\numberline {6}Training Approach}{35}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Database Labeling Pipeline}{35}{section.6.1}%
+\contentsline {subsection}{\numberline {6.1.1}SQL Reconstruction}{35}{subsection.6.1.1}%
+\contentsline {subsection}{\numberline {6.1.2}Robust Query Execution}{36}{subsection.6.1.2}%
+\contentsline {section}{\numberline {6.2}Materialized Samples and Bitmap Generation}{37}{section.6.2}%
+\contentsline {subsection}{\numberline {6.2.1}Phase 1: Materialized Sample Creation}{37}{subsection.6.2.1}%
+\contentsline {subsection}{\numberline {6.2.2}Phase 2: Runtime Bitmap Generation}{37}{subsection.6.2.2}%
+\contentsline {section}{\numberline {6.3}Query Feature Encoding}{38}{section.6.3}%
+\contentsline {subsection}{\numberline {6.3.1}Vocabulary Construction}{39}{subsection.6.3.1}%
+\contentsline {subsection}{\numberline {6.3.2}Per-Component Encoding}{39}{subsection.6.3.2}%
+\contentsline {subsubsection}{Table/Sample Encoding}{39}{subsubsection*.16}%
+\contentsline {subsubsection}{Predicate Encoding}{39}{subsubsection*.17}%
+\contentsline {subsubsection}{Join Encoding}{39}{subsubsection*.18}%
+\contentsline {subsection}{\numberline {6.3.3}Padding and Masking}{39}{subsection.6.3.3}%
+\contentsline {section}{\numberline {6.4}Multi-Set Convolutional Network (MSCN)}{40}{section.6.4}%
+\contentsline {subsection}{\numberline {6.4.1}Architecture Overview}{40}{subsection.6.4.1}%
+\contentsline {subsection}{\numberline {6.4.2}Set Processing Modules}{40}{subsection.6.4.2}%
+\contentsline {subsection}{\numberline {6.4.3}Masked Mean Pooling}{40}{subsection.6.4.3}%
+\contentsline {subsection}{\numberline {6.4.4}Output Network}{40}{subsection.6.4.4}%
+\contentsline {subsection}{\numberline {6.4.5}Label Normalization}{42}{subsection.6.4.5}%
+\contentsline {section}{\numberline {6.5}Loss Function: Q-Error}{42}{section.6.5}%
+\contentsline {section}{\numberline {6.6}Active Learning Framework}{43}{section.6.6}%
+\contentsline {subsection}{\numberline {6.6.1}Problem Formulation}{43}{subsection.6.6.1}%
+\contentsline {subsection}{\numberline {6.6.2}Acquisition Strategies}{43}{subsection.6.6.2}%
+\contentsline {subsubsection}{Random Sampling (Baseline)}{43}{subsubsection*.20}%
+\contentsline {subsubsection}{Uncertainty Sampling}{43}{subsubsection*.21}%
+\contentsline {subsubsection}{MC Dropout Uncertainty}{44}{subsubsection*.22}%
+\contentsline {subsection}{\numberline {6.6.3}Active Learning Loop}{45}{subsection.6.6.3}%
+\contentsline {subsection}{\numberline {6.6.4}Label Budget Analysis}{45}{subsection.6.6.4}%
+\contentsline {section}{\numberline {6.7}Evaluation Framework}{45}{section.6.7}%
+\contentsline {subsection}{\numberline {6.7.1}Metrics}{45}{subsection.6.7.1}%
+\contentsline {subsection}{\numberline {6.7.2}Learning Curve Visualization}{45}{subsection.6.7.2}%
+\contentsline {subsection}{\numberline {6.7.3}Predicted vs.\ Actual Scatter Plot}{45}{subsection.6.7.3}%
+\contentsline {subsection}{\numberline {6.7.4}Training Loss Across Rounds}{45}{subsection.6.7.4}%
+\contentsline {section}{\numberline {6.8}Q-Error Analysis Across Rounds}{47}{section.6.8}%
+\contentsline {subsection}{\numberline {6.8.1}Per-Round Q-Error Statistics}{47}{subsection.6.8.1}%
+\contentsline {subsection}{\numberline {6.8.2}Sample Efficiency}{47}{subsection.6.8.2}%
+\contentsline {section}{\numberline {6.9}Summary}{50}{section.6.9}%
+\contentsline {chapter}{\numberline {7}Conclusion}{51}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Summary of Contributions}{51}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Impact and Implications}{51}{section.7.2}%
+\contentsline {subsection}{\numberline {7.2.1}Database Systems Research}{51}{subsection.7.2.1}%
+\contentsline {subsection}{\numberline {7.2.2}Practical Applications}{51}{subsection.7.2.2}%
+\contentsline {subsection}{\numberline {7.2.3}Methodological Advances}{52}{subsection.7.2.3}%
+\contentsline {section}{\numberline {7.3}Limitations and Future Work}{52}{section.7.3}%
+\contentsline {subsection}{\numberline {7.3.1}Current Limitations}{52}{subsection.7.3.1}%
+\contentsline {subsection}{\numberline {7.3.2}Future Research Directions}{52}{subsection.7.3.2}%
+\contentsline {subsubsection}{Advanced Query Generation}{53}{subsubsection*.28}%
+\contentsline {subsubsection}{Enhanced Active Learning}{53}{subsubsection*.29}%
+\contentsline {subsubsection}{System Integration}{53}{subsubsection*.30}%
+\contentsline {subsubsection}{Theoretical Foundations}{53}{subsubsection*.31}%
+\contentsline {section}{\numberline {7.4}Final Remarks}{53}{section.7.4}%
+\babel@toc {ngerman}{}\relax 
+\babel@toc {english}{}\relax 

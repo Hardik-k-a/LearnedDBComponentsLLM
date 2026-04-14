@@ -1,0 +1,83 @@
+% !TEX root =  main.tex
+\chapter{Background}
+\label{chap:background}
+\pagestyle{plain}
+
+\section{Learned Database Systems and Cardinality Estimation}
+
+Modern database systems use query optimizers to optimize queries for efficient execution. At the heart of query optimization is cardinality estimation. Cardinality estimation is used to predict the number of tuples that are generated during intermediate steps of query execution. The estimates are used to optimize queries and improve performance. However, small errors in cardinality estimation can lead to poor query optimization and performance. Conventional cardinality estimation techniques use statistical estimates such as histograms and sampling. Other techniques include making assumptions such as attribute independence and uniform distribution of values. Although conventional techniques are computationally efficient, they do not reflect real-world data characteristics. Real-world data has complex correlations among attributes and tables, especially for join-heavy queries. As such, conventional techniques often yield poor estimates for queries with multiple predicates and joins.
+
+In addition to inaccuracies caused by independence assumptions, another limitation of traditional approaches lies in their inability to adapt dynamically to evolving data distributions. In real-world applications, data is continuously updated, and query workloads may change over time. Static statistical summaries often fail to capture these changes effectively, leading to outdated estimates and suboptimal execution plans. This problem becomes more severe in large-scale systems where maintaining accurate statistics is itself a costly operation. As a result, there has been a growing interest in approaches that can learn directly from data and adapt to changing workloads.
+
+This limitation has motivated the exploration of learned database systems, where machine learning models replace traditional components. Instead of relying on predefined assumptions, these models learn patterns directly from data, enabling them to capture correlations that are otherwise difficult to model. Learned cardinality estimation is one of the most actively studied areas within this paradigm. These models aim to generalize across different query structures and data distributions, providing more robust and accurate estimates compared to traditional techniques.
+
+\section{MSCN and Deep Learning-based Estimation}
+
+One important advancement in the area of learning-based query cardinality estimation is the development of a new technique called Multi-Set Convolutional Network (MSCN), proposed by Kipf et al. in\cite{DBLP:conf/cidr/KipfKRLBK19}. The technique reformulates query cardinality estimation as a supervised learning task, where query result sizes are estimated based on query structures.
+
+The basic idea behind the MSCN technique is that it represents queries in the form of sets. Unlike traditional methods, where a query is simply represented as a string of characters, MSCN represents a query as three different sets, namely tables, joins, and predicates. Each set is processed separately using shared layers of a neural network. The basic idea behind this is to make the query invariant to the ordering of query components, which is important because the semantics of a query do not depend on the order in which tables and predicates are listed.
+
+The other key feature of the MSCN is its use of bitmap-based sampling. In the process, a subset of the tuples in a given base table is sampled, and the predicates are applied to the sample to produce bitmaps. The bitmaps then represent the query predicates that are satisfied, and this additional information helps the model to better account for the correlations between the predicates and the data.
+
+In addition, the MSCN uses normalization to ensure that the cardinality estimates are within a certain range that can be learned by the model. This is crucial, especially considering that the cardinality estimates can differ considerably across queries.The MSCN uses loss functions that involve relative errors, as opposed to absolute errors, which is more appropriate for query optimization tasks.
+
+Despite its strong performance, MSCN depends heavily on labeled training data. Each training example requires a query and its true cardinality, which is obtained by executing the query on a database. As query complexity increases, the cost of execution grows significantly, making it difficult to scale the training process. This limitation highlights a fundamental challenge in learned database systems: the high cost of data generation. In addition, the reliance on execution makes it difficult to quickly generate new training data when schemas or workloads change.
+
+\section{Workload Sensitivity and Challenges}
+
+The performance of learned cardinality estimators not only depends on the architecture used but also on the nature and characteristics of the training workload. The study conducted by Wang et al. \cite{DBLP:journals/pvldb/WangQWWZ21} offers a comprehensive analysis on how different query properties influence the performance of learned cardinality estimators.
+
+For example, a learned model may not perform well when it is tested on queries that have different types of predicates, such as range predicates, when it is only trained on queries that have equality predicates. Similarly, a query may have high selectivity and join complexity, causing a large estimation error. This example again emphasizes that the training data should be highly diverse.
+
+Another important aspect to be considered is related to workload shift, where the query distribution is different from the training distribution. In this case, learned models may not perform well, and this again emphasizes that the training data should be highly diverse. Moreover, the interaction between multiple query features, such as the number of joins and predicate selectivity, can further complicate the estimation process. These interactions are often difficult to model explicitly, which reinforces the importance of exposing models to a wide variety of query patterns during training.
+
+\section{LLM-based SQL Generation}
+
+Recently, large language models have been recognized as effective means for generating structured data. In this regard, the SQLStorm framework\cite{DBLP:journals/pvldb/SchmidtLBN25} has been presented to show that LLMs can be effectively used to produce large volumes of varied and realistic SQL queries. In this regard, the SQLStorm framework exploits the capabilities of schema-informed prompting to produce varied and realistic queries.
+
+Unlike other query generation techniques that are based on template-based and rule-based approaches, LLMs can be effectively used to produce queries that can capture a wide range of query patterns. This is one of the main reasons that LLMs can be effectively used to produce training datasets for learning-based query generation techniques. In addition to this, LLMs can be effectively used to produce queries that are not included in existing workloads. This allows for the exploration of new query patterns.
+
+Another important advantage of LLM-based generation is its ability to incorporate semantic understanding of schemas. By conditioning on table and column descriptions, LLMs can generate queries that are not only syntactically correct but also semantically meaningful. This capability is particularly useful when dealing with complex schemas, where manual query generation becomes challenging.
+
+Although LLMs can be effectively used to produce queries, they do not have the capability to produce the labels that are associated with the queries. This means that the produced queries have to be executed to produce labels. This is one of the main drawbacks of using LLMs for query generation, as it reintroduces the dependency on database execution.
+
+\section{Generative AI for Database Components}
+
+The base paper \cite{DBLP:journals/corr/abs-2512-20271} attempts to address this data generation bottleneck through a framework that utilizes generative models to automatically generate training data for learned database components. The basic idea is to utilize LLMs to automatically generate realistic SQL queries, thereby reducing reliance on manually collected query logs.
+This is a major departure from the traditional way learned database systems have been designed. By automating query generation, it is possible to generate large and varied datasets to support a wide range of query types. The framework also outlines how generative models can be incorporated into the learning pipeline to support data generation.
+
+An important contribution of this work is the structured pipeline it proposes, where query generation, validation, execution, and model training are integrated into a unified framework. This pipeline ensures that generated queries are not only diverse but also executable and meaningful within the given schema. The use of prompt engineering and iterative refinement further improves the quality of generated queries.
+
+One limitation of this framework is that it relies on executing the generated queries to obtain ground truth labels. While query generation is now automated, label generation is computationally intensive and thus limits scalability. This is where a completely synthetic method is proposed, where query and label generation can be performed without relying on database execution. This shift represents a natural evolution of the framework, aiming to remove the remaining bottleneck in the data generation process.
+
+\section{Active Learning for Data Efficiency}
+
+Active learning helps in developing a framework for improving data efficiency, which can be done through the selection of the best data samples for learning. As discussed in \cite{DBLP:journals/tnn/LiWCJDO25}, not all data samples are equally important in improving the performance of the model. This way, it is possible to attain high accuracy with less data.
+
+In the context of LQE using learned cardinality estimation, active learning helps in improving the efficiency of the process of query labeling. Instead of labeling all the generated queries, the model can be improved through the selection of the best queries in improving the performance of the model. This selection of the best queries can be done using the uncertainty of the model.
+
+In addition to uncertainty-based selection, active learning can also incorporate diversity-based sampling, where queries that represent different regions of the query space are selected. This ensures that the model is exposed to a wide range of patterns while avoiding redundancy in the training data. Such strategies are particularly useful when working with large volumes of synthetically generated data.
+
+The integration of active learning with the process of synthetic data generation helps in improving the efficiency of the learning process. LLMs are capable of generating a wide variety of data samples in the form of queries. Active learning helps in the selection of the best data samples, thus improving the efficiency of the learning process.
+
+\section{Data Diversity, Personas, and KL Divergence}
+
+Diversity in the generated data is a critical factor to be taken into consideration for the training of strong models. The PAARS\cite{DBLP:journals/corr/abs-2503-24228} framework proposes the use of personas for generating diverse and realistic data. Personas help in the simulation of diverse behavior, which enables the generation of diverse data.
+
+In order to test the quality of the generated data, the PAARS framework uses the KL divergence as a similarity metric between the generated data and real-world data. The KL divergence is a measure of the dissimilarity between two probability distributions, which can be used to test the similarity between the generated data and real-world data, especially in the case of SQL queries.
+
+In the context of query generation, KL divergence can be applied to distributions over query features such as the number of joins, predicate types, and selectivity ranges. By comparing these distributions between synthetic and real workloads, it is possible to evaluate whether the generated data accurately reflects real-world patterns. This provides a quantitative basis for improving the quality of synthetic datasets.
+
+\section{System Perspective: Ollama and Practical Deployment}
+
+In terms of system efficiency, the application of LLMs for data generation also requires careful consideration. In this work, Ollama is used to locally run LLMs. This allows for efficient query generation. Local running also provides several advantages, including efficiency, privacy, and ease of experimentation. 
+
+Another advantage of using local running for LLMs is the ability to control the models. This provides reproducibility of experiments. Additionally, this approach helps to ensure that the results are not affected by external APIs. Local running also provides the advantage of fine-tuning models based on specific requirements.
+
+The application of Ollama provides the advantage of generating queries. This process can be refined and validated. This setup provides the advantage of ensuring that the generated data meets the requirements for the training process.
+
+\section{Summary and Motivation}
+
+The background provided in this section points to the evolution of learned database systems, starting with conventional estimators, followed by machine learning models, and then moving on to the latest generative models. While the MSCN \cite{DBLP:conf/cidr/KipfKRLBK19} paper proves the efficiency of learned models, it also points to the disadvantage of data generation. Subsequent papers focus on the need for diversity in the workload\cite{DBLP:journals/pvldb/WangQWWZ21} and the application of LLMs in query generation \cite{DBLP:journals/pvldb/SchmidtLBN25}.
+
+However, the conventional methods are all based on execution-based labeling, which is not scalable. This thesis, with the help of insights provided by generative models, active learning \cite{DBLP:journals/tnn/LiWCJDO25}, and diversity-aware models, proposes the application of LLMs in generating both the query and the label, thus using the learned model as the final database component.

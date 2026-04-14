@@ -1,0 +1,9 @@
+\contentsline {algorithm}{\numberline {1}{\ignorespaces Complete Pipeline Execution Workflow}}{20}{algorithm.1}%
+\contentsline {algorithm}{\numberline {2}{\ignorespaces LLM Batch Query Generation with Retry Logic}}{26}{algorithm.2}%
+\contentsline {algorithm}{\numberline {3}{\ignorespaces Structural SQL Validation}}{27}{algorithm.3}%
+\contentsline {algorithm}{\numberline {4}{\ignorespaces Synthetic Query Generation}}{31}{algorithm.4}%
+\contentsline {algorithm}{\numberline {5}{\ignorespaces SQL Reconstruction from Structured Query Components}}{35}{algorithm.5}%
+\contentsline {algorithm}{\numberline {6}{\ignorespaces Robust Query Labeling with Timeout and Error Recovery}}{36}{algorithm.6}%
+\contentsline {algorithm}{\numberline {7}{\ignorespaces Materialized Sample Creation}}{37}{algorithm.7}%
+\contentsline {algorithm}{\numberline {8}{\ignorespaces Runtime Bitmap Generation for a Single Query}}{38}{algorithm.8}%
+\contentsline {algorithm}{\numberline {9}{\ignorespaces Complete Active Learning Loop with Database Labeling}}{46}{algorithm.9}%

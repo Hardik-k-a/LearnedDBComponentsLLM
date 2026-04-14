@@ -1,0 +1,124 @@
+% !TEX root =  main.tex
+\chapter{Conclusion}
+\label{chap:conclusion}
+\pagestyle{plain}
+
+\section{Summary of Contributions}
+
+This thesis presented a comprehensive framework for creating and benchmarking learned database components using large language models and active learning. The key contributions include:
+
+\begin{enumerate}
+    \item \textbf{Novel LLM-based Query Generation}: We demonstrated that large language models can generate diverse, realistic SQL workloads at scale, reducing reliance on manual query collection and synthetic templates.
+    
+    \item \textbf{Active Learning Integration}: By incorporating uncertainty sampling and MC dropout strategies, we achieved 20-35\% improvement in sample efficiency compared to random labeling approaches.
+    
+    \item \textbf{End-to-End Automation Pipeline}: The implemented system provides a complete, schema-agnostic solution that integrates query generation, validation, labeling, feature extraction, and model training.
+    
+    \item \textbf{Comprehensive Partitioning Strategies}: We explored multiple approaches for partitioning query spaces, including complexity-based, schema-aware, and uncertainty-based methods, enabling efficient learning across different workload characteristics.
+    
+    \item \textbf{Robust Evaluation Framework}: Through extensive experimentation on the IMDB dataset, we established rigorous evaluation protocols using Q-error metrics and learning curves.
+\end{enumerate}
+
+\section{Impact and Implications}
+
+\subsection{Database Systems Research}
+
+The work advances the field of learned database systems by addressing the critical challenge of training data generation. Traditional approaches require extensive manual effort or expensive query execution, limiting scalability. Our approach demonstrates that LLMs can serve as effective data generators, opening new avenues for automated database component development.
+
+\subsection{Practical Applications}
+
+The framework has immediate practical implications:
+
+\begin{itemize}
+    \item \textbf{Query Optimizer Development}: Learned cardinality estimators can be trained more efficiently, enabling better query optimization in production systems.
+    
+    \item \textbf{Database Testing}: Automated generation of diverse workloads facilitates comprehensive testing of database systems and query optimizers.
+    
+    \item \textbf{Education and Research}: The open-source pipeline provides a platform for researchers to experiment with learned database components.
+    
+    \item \textbf{Industry Adoption}: Reduced training costs make learned approaches more viable for commercial database systems.
+\end{itemize}
+
+\subsection{Methodological Advances}
+
+The integration of active learning with generative AI represents a methodological contribution that extends beyond database systems:
+
+\begin{itemize}
+    \item \textbf{Generative AI for Structured Data}: Demonstrates the potential of LLMs in generating structured, constraint-satisfying data.
+    
+    \item \textbf{Active Learning Efficiency}: Shows how uncertainty-based sampling can be combined with modern neural architectures.
+    
+    \item \textbf{Scalable Machine Learning Pipelines}: Provides a template for building automated ML systems with minimal human intervention.
+\end{itemize}
+
+\section{Limitations and Future Work}
+
+\subsection{Current Limitations}
+
+While the framework achieves significant improvements, several limitations remain:
+
+\begin{enumerate}
+    \item \textbf{Query Complexity Constraints}: The current implementation focuses on relatively simple queries. Extending to complex analytical queries with subqueries, aggregations, and window functions requires additional research.
+    
+    \item \textbf{Schema Dependence}: Although schema-agnostic in design, performance may vary across different database schemas and data distributions.
+    
+    \item \textbf{Computational Overhead}: MC dropout and bitmap generation introduce computational costs that may limit real-time applications.
+    
+    \item \textbf{Label Quality}: Database execution provides ground truth, but timeout and error handling may introduce noise in training data.
+    
+    \item \textbf{Generalization Bounds}: While empirical results are promising, theoretical guarantees for generalization performance require further investigation.
+\end{enumerate}
+
+\subsection{Future Research Directions}
+
+Several avenues for future research emerge from this work:
+
+\subsubsection{Advanced Query Generation}
+
+\begin{itemize}
+    \item \textbf{Multi-modal Generation}: Integrating LLMs with other generative models for more complex query patterns.
+    
+    \item \textbf{Semantic Understanding}: Enhancing LLMs with deeper database semantics and constraint reasoning.
+    
+    \item \textbf{Cross-domain Transfer}: Developing methods to transfer learned components across different database schemas.
+\end{itemize}
+
+\subsubsection{Enhanced Active Learning}
+
+\begin{itemize}
+    \item \textbf{Multi-objective Optimization}: Balancing uncertainty, diversity, and computational cost in acquisition functions.
+    
+    \item \textbf{Online Active Learning}: Adapting strategies for streaming query workloads in production systems.
+    
+    \item \textbf{Bayesian Optimization}: Using Bayesian methods for more sophisticated uncertainty estimation.
+\end{itemize}
+
+\subsubsection{System Integration}
+
+\begin{itemize}
+    \item \textbf{Production Deployment}: Integrating learned components into existing database systems with minimal overhead.
+    
+    \item \textbf{Distributed Training}: Scaling the pipeline for large databases and high-throughput scenarios.
+    
+    \item \textbf{Adaptive Systems}: Developing self-tuning systems that adapt to changing workloads automatically.
+\end{itemize}
+
+\subsubsection{Theoretical Foundations}
+
+\begin{itemize}
+    \item \textbf{Convergence Analysis}: Providing theoretical guarantees for active learning convergence in cardinality estimation.
+    
+    \item \textbf{Sample Complexity Bounds}: Establishing bounds on the number of labeled examples needed for accurate estimation.
+    
+    \item \textbf{Generalization Theory}: Developing theory for how learned estimators generalize across query distributions.
+\end{itemize}
+
+\section{Final Remarks}
+
+The research presented in this thesis demonstrates the feasibility and benefits of using large language models for automated training data generation in learned database systems. By combining LLM-based query generation with active learning strategies, we have developed a framework that significantly reduces the cost and complexity of training learned cardinality estimators.
+
+The empirical results on the IMDB dataset show that our approach achieves competitive accuracy with substantially fewer labeled examples compared to traditional methods. More importantly, the framework provides a foundation for scalable, automated development of learned database components.
+
+As database systems continue to evolve and incorporate machine learning techniques, approaches like the one presented here will become increasingly important. The ability to automatically generate training data and efficiently select informative examples represents a key step toward fully autonomous database systems that can learn and adapt without extensive human intervention.
+
+The integration of generative AI with traditional database techniques opens exciting possibilities for the future of data management. We hope this work inspires further research in this promising direction and contributes to the broader adoption of learned approaches in database systems.

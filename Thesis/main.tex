@@ -1,0 +1,158 @@
+\documentclass[a4paper]{report}
+%\documentclass[a4paper,twoside,openright]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman,english]{babel}
+\usepackage{titlesec}
+\usepackage{subfigure}
+\usepackage{graphicx}
+\usepackage{parskip}
+\usepackage{lmodern}
+\usepackage{adjustbox}
+\usepackage{tikz}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{caption}
+\usepackage{cite}
+\usepackage{multirow}
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{pgfplots}
+\usepackage{pdflscape}
+\usepackage[hidelinks]{hyperref}
+\usetikzlibrary{arrows,shapes,fit,positioning}
+\usetikzlibrary{decorations.pathmorphing}
+\usetikzlibrary{decorations.markings}
+
+\pgfplotsset{compat=1.18}
+
+\titleformat{\chapter}[display]
+{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+
+% configure autoref
+\addto\extrasenglish{
+	\def\chapterautorefname{Chapter}
+	\def\subsectionautorefname{Subsection}
+	\def\sectionautorefname{Section}
+}
+
+% this alters "before" spacing (the second length argument) to 0
+\titlespacing*{\chapter}{0pt}{-50pt}{20pt}
+
+\author{}
+\date{\today}
+\begin{document}
+\pagestyle{empty}
+\begin{titlepage}
+\begin{center}
+  % Upper part of the page  
+	\includegraphics[width=10cm,clip,trim=0 0 0 0\textwidth]{rptu}\\[2cm]
+	% {
+	% 	\linespread{1.5}\selectfont
+	% 	\textsc{\LARGE Rheinland-Pfälzische Technische Universität Kaiserslautern-Landau}\\[0.5cm]
+	% }
+  \textsc{\large Fachbereich Informatik}\\[1.5cm]
+	\vfill
+  \textsc{\Large Master's Thesis}\\[0.5cm]
+{
+  \linespread{1.0}\selectfont
+{\LARGE   \textsc{Creating and Benchmarking Learned Database Components using LLMs}\\[2cm]}
+}
+
+  { \Large
+  Author:\\
+	Preksha Rajesh Shah\\[2cm]
+  {\small submitted on: \\
+  \today}
+  }\\[1cm]
+
+  Supervisor\\
+  Angjela Davitkova\\[1cm]
+  Reviewers\\
+  Prof. Dr.-Ing. Sebastian Michel\\
+
+  
+\end{center}
+\end{titlepage}
+
+%
+\cleardoublepage
+
+
+\begin{abstract}
+Lorem ipsum
+\end{abstract}
+
+\cleardoublepage
+
+\selectlanguage{ngerman}
+\begin{abstract}
+Lorem ipsum
+\end{abstract}
+\selectlanguage{english}
+
+\tableofcontents
+\thispagestyle{empty}
+\listoffigures
+\thispagestyle{empty}
+\begingroup
+\thispagestyle{empty}
+\let\clearpage\relax
+\vspace{3cm}
+\listofalgorithms
+\let\clearpage\relax
+\vspace{3cm}
+\listoftables
+\endgroup
+\thispagestyle{empty}
+
+
+%%% 
+%%% Add your inputs here
+%%%
+
+\input{introduction}
+\input{background}
+\input{relatedwork}
+\input{approach}
+\input{querygeneration}
+\input{trainingapproach}
+\input{conclusion}
+  
+
+\bibliographystyle{abbrv}
+\bibliography{main}
+
+\pagestyle{empty}
+
+\cleardoublepage
+
+\null
+
+\selectlanguage{ngerman}
+\subsection*{Eidesstattliche Erklärung}
+
+Ich erkläre hiermit an Eides statt, dass ich die vorliegende Arbeit
+selbstständig verfasst und keine anderen als die angegebenen Quellen
+und Hilfsmittel verwendet habe. 
+\selectlanguage{english}
+
+\subsection*{Statement in Lieu of an Oath }
+
+I hereby confirm that I have written this thesis on my own and that
+I have not used any other media or materials than the ones referred
+to in this thesis. 
+
+\vspace{2cm}
+
+
+Kaiserslautern, $\begin{array}[t]{c}
+    \text{\_\_\_\_\_\_\_\_\_\_\_\_}\\
+    {\scriptscriptstyle \text{Date}}
+\end{array}$\hfill{$\begin{array}[t]{c}
+    \_\_\_\_\_\_\_\_\_\_\_\_\\
+    {\scriptscriptstyle \text{Signature}}
+\end{array}$\hfill}
+
+\end{document}

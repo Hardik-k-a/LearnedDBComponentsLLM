@@ -1,0 +1,25 @@
+\babel@toc {english}{}\relax 
+\babel@toc {ngerman}{}\relax 
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {4.1}{\ignorespaces High-level system architecture showing the end-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop indicates iterative refinement through multiple active learning rounds.}}{14}{figure.caption.5}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces Entity-relationship diagram of the IMDB database schema used in experiments. Primary keys (PK) and foreign keys (FK) are annotated. The \texttt {title\_principals} table serves as a junction table connecting titles to people.}}{19}{figure.caption.6}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Structure of the LLM prompt template, consisting of five hierarchically organized components that guide the model from context understanding to constrained output generation.}}{23}{figure.caption.8}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Multi-layer validation pipeline for LLM-generated queries. Each layer progressively filters invalid queries, with rejected queries logged for analysis. Valid queries proceed to the MSCN format conversion stage.}}{29}{figure.caption.9}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Distribution of the number of tables per generated query. The workload exhibits a balanced mix of single-table, two-table join, and three-table join queries, ensuring coverage of different complexity levels.}}{31}{figure.caption.11}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Distribution of the number of filter predicates per generated query. The majority of queries contain 1--3 predicates, with a long tail extending to the maximum of 4 predicates. Queries with zero predicates represent pure join queries.}}{32}{figure.caption.12}%
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Distribution of true cardinalities for labeled queries (log$_{10}$ scale). The near-Gaussian shape in log space indicates a log-normal distribution spanning from single-digit cardinalities to tens of millions of rows.}}{32}{figure.caption.13}%
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Typical query validation outcomes for a 5000-query generation run. Approximately 95\% of LLM-generated queries pass all validation layers, demonstrating the effectiveness of the prompt engineering strategy.}}{33}{figure.caption.14}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {6.1}{\ignorespaces Complete MSCN architecture. Each query component (samples, predicates, joins) passes through a dedicated two-layer MLP with dropout, followed by masked mean pooling. The pooled representations are concatenated and processed through an output MLP with sigmoid activation to produce a normalized cardinality estimate $\hat {y} \in [0, 1]$.}}{41}{figure.caption.19}%
+\contentsline {figure}{\numberline {6.2}{\ignorespaces Comparison of acquisition strategies. Random sampling (green crosses) selects queries uniformly across the prediction range. Uncertainty sampling (red triangles) concentrates selections around $\hat {y} = 0.5$ where model uncertainty is highest. The shaded region indicates the high-uncertainty zone.}}{44}{figure.caption.23}%
+\contentsline {figure}{\numberline {6.3}{\ignorespaces Active learning curves showing validation median Q-error versus number of labeled queries for three acquisition strategies. MC Dropout achieves 35\% improvement in sample efficiency over random sampling, while uncertainty sampling achieves 23\% improvement. All strategies start from the same initial training set of 200 queries.}}{47}{figure.caption.24}%
+\contentsline {figure}{\numberline {6.4}{\ignorespaces Predicted vs.\ actual cardinality for the final trained model (log-log scale). Points cluster tightly around the ideal diagonal, indicating accurate predictions across cardinalities spanning 7 orders of magnitude. Dashed gray lines indicate the factor-of-2 boundary.}}{48}{figure.caption.25}%
+\contentsline {figure}{\numberline {6.5}{\ignorespaces Training loss curves across five active learning rounds. Each subsequent round starts from a lower loss baseline due to the model retaining learned parameters and receiving additional informative training data from the acquisition process.}}{49}{figure.caption.26}%
+\addvspace {10\p@ }
+\babel@toc {ngerman}{}\relax 
+\babel@toc {english}{}\relax 
