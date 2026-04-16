@@ -44,7 +44,7 @@ from labeling.bitmap_utils import (
     create_materialized_samples,
     generate_bitmaps_for_queries,
 )
-from generation.query_generator import generate_all_queries, generate_synthetic_queries, validate_sql
+from generation.query_generator import generate_all_queries, generate_synthetic_queries, validate_sql, SchemaValidator
 from evaluation.pipeline_graphs import generate_all_graphs
 
 import matplotlib
@@ -432,6 +432,12 @@ def run_pipeline(args):
             except Exception as e:
                 print(f"WARNING: Could not read stats file '{args.stats_file}': {e}")
             
+        # Build schema validator for in-memory query validation (no DB needed)
+        schema_validator = SchemaValidator(schema_text, stats_text)
+        print(f"  Schema validator: {len(schema_validator.tables)} tables, "
+              f"{len(schema_validator.numeric_columns)} numeric cols, "
+              f"{len(schema_validator.valid_joins)//2} FK joins")
+
         raw_sqls = generate_all_queries(
             total_queries=args.total_queries,
             schema_text=schema_text,
@@ -439,15 +445,17 @@ def run_pipeline(args):
             batch_size=args.batch_size_gen,
             model_name=args.model_name,
             ollama_url=args.ollama_url,
+            schema_validator=schema_validator,
         )
 
         # Convert SQL strings to structured format
+        # (queries are already schema-validated during generation,
+        #  this is a safety net + format conversion step)
         all_queries = []
         skipped_validation = 0
         for sql in raw_sqls:
-            if not validate_sql(sql):
+            if not validate_sql(sql, schema_validator):
                 skipped_validation += 1
-                print(f"  [skip-validation] Rejected malformed SQL: {sql[:80]}...")
                 continue
             parsed = parse_sql_to_mscn(sql)
             if parsed:
@@ -457,7 +465,7 @@ def run_pipeline(args):
                 print(f"  [skip-parse] Could not parse: {sql[:80]}...")
         
         if skipped_validation > 0:
-            print(f"  Filtered out {skipped_validation} malformed queries")
+            print(f"  Post-generation safety net filtered {skipped_validation} additional queries")
 
         total_generated = len(raw_sqls)
         valid_count = len(all_queries)

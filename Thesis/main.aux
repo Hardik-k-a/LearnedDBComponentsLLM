@@ -69,38 +69,36 @@
 \citation{DBLP:journals/tnn/LiWCJDO25}
 \citation{DBLP:journals/corr/abs-2503-24228}
 \@writefile{toc}{\contentsline {section}{\numberline {3.7}Positioning of the Proposed Approach}{11}{section.3.7}\protected@file@percent }
-\citation{kipf2018learned}
 \@writefile{toc}{\contentsline {chapter}{\numberline {4}Approach}{12}{chapter.4}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
 \newlabel{chap:approach}{{4}{12}{Approach}{chapter.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.1}Problem Statement and Motivation}{12}{section.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.2}Design Principles}{13}{section.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.1}Schema Agnosticism}{13}{subsection.4.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.2}Modularity and Extensibility}{13}{subsection.4.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.3}Robustness and Fault Tolerance}{13}{subsection.4.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.4}Reproducibility}{14}{subsection.4.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.3}System Architecture Overview}{14}{section.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.1}Design Principles}{12}{section.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.1}Schema Agnosticism}{12}{subsection.4.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.2}Modularity and Extensibility}{12}{subsection.4.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.3}Robustness and Fault Tolerance}{13}{subsection.4.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.4}Reproducibility}{13}{subsection.4.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.2}System Architecture Overview}{13}{section.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.3}Pipeline Stages}{13}{section.4.3}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces High-level system architecture showing the end-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop indicates iterative refinement through multiple active learning rounds.}}{14}{figure.caption.5}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
 \newlabel{fig:system_overview}{{4.1}{14}{High-level system architecture showing the end-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop indicates iterative refinement through multiple active learning rounds}{figure.caption.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.4}Pipeline Stages}{15}{section.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.1}Stage 1: LLM-Based Query Generation}{15}{subsection.4.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.2}Stage 2: Query Validation and Format Conversion}{15}{subsection.4.4.2}\protected@file@percent }
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {4.1}{\ignorespaces MSCN CSV Format Example}}{16}{lstlisting.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.3}Stage 3: Database Labeling}{16}{subsection.4.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.4}Stage 4: Feature Extraction and Bitmap Generation}{16}{subsection.4.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.5}Stage 5: Active Learning Loop}{17}{subsection.4.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.6}Stage 6: Evaluation and Visualization}{17}{subsection.4.4.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.5}Dataset and Experimental Configuration}{18}{section.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5.1}The IMDB Dataset}{18}{subsection.4.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5.2}Default Hyperparameters}{18}{subsection.4.5.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.6}Workflow Execution}{18}{section.4.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.7}Summary}{18}{section.4.7}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4.2}{\ignorespaces Entity-relationship diagram of the IMDB database schema used in experiments. Primary keys (PK) and foreign keys (FK) are annotated. The \texttt  {title\_principals} table serves as a junction table connecting titles to people.}}{19}{figure.caption.6}\protected@file@percent }
-\newlabel{fig:imdb_schema}{{4.2}{19}{Entity-relationship diagram of the IMDB database schema used in experiments. Primary keys (PK) and foreign keys (FK) are annotated. The \texttt {title\_principals} table serves as a junction table connecting titles to people}{figure.caption.6}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {4.1}{\ignorespaces Default hyperparameters for the complete pipeline.}}{19}{table.caption.7}\protected@file@percent }
-\newlabel{tab:default_hyperparams}{{4.1}{19}{Default hyperparameters for the complete pipeline}{table.caption.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.1}Stage 1: LLM-Based Query Generation}{14}{subsection.4.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.2}Stage 2: Query Validation and Format Conversion}{15}{subsection.4.3.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {4.1}{\ignorespaces MSCN CSV Format Example}}{15}{lstlisting.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.3}Stage 3: Database Labeling}{15}{subsection.4.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.4}Stage 4: Feature Extraction and Bitmap Generation}{16}{subsection.4.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.5}Stage 5: Active Learning Loop}{16}{subsection.4.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.6}Stage 6: Evaluation and Visualization}{17}{subsection.4.3.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.4}Dataset and Experimental Configuration}{17}{section.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.1}The IMDB Dataset}{17}{subsection.4.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.2}Default Hyperparameters}{17}{subsection.4.4.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4.2}{\ignorespaces Entity-relationship diagram of the IMDB database schema used in experiments. Primary keys (PK) and foreign keys (FK) are annotated. The \texttt  {title\_principals} table serves as a junction table connecting titles to people.}}{18}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:imdb_schema}{{4.2}{18}{Entity-relationship diagram of the IMDB database schema used in experiments. Primary keys (PK) and foreign keys (FK) are annotated. The \texttt {title\_principals} table serves as a junction table connecting titles to people}{figure.caption.6}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4.1}{\ignorespaces Default hyperparameters for the complete pipeline.}}{18}{table.caption.7}\protected@file@percent }
+\newlabel{tab:default_hyperparams}{{4.1}{18}{Default hyperparameters for the complete pipeline}{table.caption.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.5}Workflow Execution}{19}{section.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.6}Summary}{19}{section.4.6}\protected@file@percent }
 \@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Complete Pipeline Execution Workflow}}{20}{algorithm.1}\protected@file@percent }
 \newlabel{alg:pipeline_main}{{1}{20}{Complete Pipeline Execution Workflow}{algorithm.1}{}}
 \@writefile{toc}{\contentsline {chapter}{\numberline {5}Query Generation Approach}{21}{chapter.5}\protected@file@percent }
@@ -140,105 +138,127 @@
 \newlabel{tab:synthetic_tables}{{5.1}{30}{Synthetic generator table definitions with column ranges}{table.caption.10}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.5.2}Generation Algorithm}{30}{subsection.5.5.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {5.6}Query Workload Analysis}{30}{section.5.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.1}Structural Feature Distributions}{30}{subsection.5.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.2}Predicate Complexity Distribution}{30}{subsection.5.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.3}Cardinality Distribution}{30}{subsection.5.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.7}Comparison: LLM vs.\ Synthetic Generation}{30}{section.5.7}\protected@file@percent }
 \@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces Synthetic Query Generation}}{31}{algorithm.4}\protected@file@percent }
 \newlabel{alg:synthetic_gen}{{4}{31}{Synthetic Query Generation}{algorithm.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Distribution of the number of tables per generated query. The workload exhibits a balanced mix of single-table, two-table join, and three-table join queries, ensuring coverage of different complexity levels.}}{31}{figure.caption.11}\protected@file@percent }
-\newlabel{fig:structural_analysis}{{5.3}{31}{Distribution of the number of tables per generated query. The workload exhibits a balanced mix of single-table, two-table join, and three-table join queries, ensuring coverage of different complexity levels}{figure.caption.11}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces Distribution of the number of filter predicates per generated query. The majority of queries contain 1--3 predicates, with a long tail extending to the maximum of 4 predicates. Queries with zero predicates represent pure join queries.}}{32}{figure.caption.12}\protected@file@percent }
-\newlabel{fig:predicate_distribution}{{5.4}{32}{Distribution of the number of filter predicates per generated query. The majority of queries contain 1--3 predicates, with a long tail extending to the maximum of 4 predicates. Queries with zero predicates represent pure join queries}{figure.caption.12}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Distribution of true cardinalities for labeled queries (log$_{10}$ scale). The near-Gaussian shape in log space indicates a log-normal distribution spanning from single-digit cardinalities to tens of millions of rows.}}{32}{figure.caption.13}\protected@file@percent }
-\newlabel{fig:cardinality_dist}{{5.5}{32}{Distribution of true cardinalities for labeled queries (log$_{10}$ scale). The near-Gaussian shape in log space indicates a log-normal distribution spanning from single-digit cardinalities to tens of millions of rows}{figure.caption.13}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.4}Validation Success Rates}{33}{subsection.5.6.4}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces Typical query validation outcomes for a 5000-query generation run. Approximately 95\% of LLM-generated queries pass all validation layers, demonstrating the effectiveness of the prompt engineering strategy.}}{33}{figure.caption.14}\protected@file@percent }
-\newlabel{fig:validation_rates}{{5.6}{33}{Typical query validation outcomes for a 5000-query generation run. Approximately 95\% of LLM-generated queries pass all validation layers, demonstrating the effectiveness of the prompt engineering strategy}{figure.caption.14}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.7}Comparison: LLM vs.\ Synthetic Generation}{33}{section.5.7}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Comparison of LLM-based and synthetic query generation approaches.}}{33}{table.caption.15}\protected@file@percent }
-\newlabel{tab:gen_comparison}{{5.2}{33}{Comparison of LLM-based and synthetic query generation approaches}{table.caption.15}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.8}Summary}{34}{section.5.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{\numberline {6}Training Approach}{35}{chapter.6}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Comparison of LLM-based and synthetic query generation approaches.}}{31}{table.caption.11}\protected@file@percent }
+\newlabel{tab:gen_comparison}{{5.2}{31}{Comparison of LLM-based and synthetic query generation approaches}{table.caption.11}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.8}Summary}{32}{section.5.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {6}Training Approach}{33}{chapter.6}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:training_approach}{{6}{35}{Training Approach}{chapter.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.1}Database Labeling Pipeline}{35}{section.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.1}SQL Reconstruction}{35}{subsection.6.1.1}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {5}{\ignorespaces SQL Reconstruction from Structured Query Components}}{35}{algorithm.5}\protected@file@percent }
-\newlabel{alg:sql_reconstruction}{{5}{35}{SQL Reconstruction from Structured Query Components}{algorithm.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.2}Robust Query Execution}{36}{subsection.6.1.2}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {6}{\ignorespaces Robust Query Labeling with Timeout and Error Recovery}}{36}{algorithm.6}\protected@file@percent }
-\newlabel{alg:robust_labeling}{{6}{36}{Robust Query Labeling with Timeout and Error Recovery}{algorithm.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.2}Materialized Samples and Bitmap Generation}{37}{section.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}Phase 1: Materialized Sample Creation}{37}{subsection.6.2.1}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {7}{\ignorespaces Materialized Sample Creation}}{37}{algorithm.7}\protected@file@percent }
-\newlabel{alg:materialized_samples}{{7}{37}{Materialized Sample Creation}{algorithm.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Phase 2: Runtime Bitmap Generation}{37}{subsection.6.2.2}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {8}{\ignorespaces Runtime Bitmap Generation for a Single Query}}{38}{algorithm.8}\protected@file@percent }
-\newlabel{alg:bitmap_gen}{{8}{38}{Runtime Bitmap Generation for a Single Query}{algorithm.8}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.3}Query Feature Encoding}{38}{section.6.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.1}Vocabulary Construction}{39}{subsection.6.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.2}Per-Component Encoding}{39}{subsection.6.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Table/Sample Encoding}{39}{subsubsection*.16}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Predicate Encoding}{39}{subsubsection*.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Join Encoding}{39}{subsubsection*.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.3}Padding and Masking}{39}{subsection.6.3.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.4}Multi-Set Convolutional Network (MSCN)}{40}{section.6.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.1}Architecture Overview}{40}{subsection.6.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.2}Set Processing Modules}{40}{subsection.6.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.3}Masked Mean Pooling}{40}{subsection.6.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.4}Output Network}{40}{subsection.6.4.4}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces Complete MSCN architecture. Each query component (samples, predicates, joins) passes through a dedicated two-layer MLP with dropout, followed by masked mean pooling. The pooled representations are concatenated and processed through an output MLP with sigmoid activation to produce a normalized cardinality estimate $\hat  {y} \in [0, 1]$.}}{41}{figure.caption.19}\protected@file@percent }
-\newlabel{fig:mscn_architecture}{{6.1}{41}{Complete MSCN architecture. Each query component (samples, predicates, joins) passes through a dedicated two-layer MLP with dropout, followed by masked mean pooling. The pooled representations are concatenated and processed through an output MLP with sigmoid activation to produce a normalized cardinality estimate $\hat {y} \in [0, 1]$}{figure.caption.19}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.5}Label Normalization}{42}{subsection.6.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.5}Loss Function: Q-Error}{42}{section.6.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.6}Active Learning Framework}{43}{section.6.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.1}Problem Formulation}{43}{subsection.6.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.2}Acquisition Strategies}{43}{subsection.6.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Random Sampling (Baseline)}{43}{subsubsection*.20}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Uncertainty Sampling}{43}{subsubsection*.21}\protected@file@percent }
+\newlabel{chap:training_approach}{{6}{33}{Training Approach}{chapter.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}Database Labeling Pipeline}{33}{section.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.1}SQL Reconstruction}{33}{subsection.6.1.1}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {5}{\ignorespaces SQL Reconstruction from Structured Query Components}}{33}{algorithm.5}\protected@file@percent }
+\newlabel{alg:sql_reconstruction}{{5}{33}{SQL Reconstruction from Structured Query Components}{algorithm.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.2}Robust Query Execution}{34}{subsection.6.1.2}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {6}{\ignorespaces Robust Query Labeling with Timeout and Error Recovery}}{34}{algorithm.6}\protected@file@percent }
+\newlabel{alg:robust_labeling}{{6}{34}{Robust Query Labeling with Timeout and Error Recovery}{algorithm.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}Materialized Samples and Bitmap Generation}{35}{section.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}Phase 1: Materialized Sample Creation}{35}{subsection.6.2.1}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {7}{\ignorespaces Materialized Sample Creation}}{35}{algorithm.7}\protected@file@percent }
+\newlabel{alg:materialized_samples}{{7}{35}{Materialized Sample Creation}{algorithm.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Phase 2: Runtime Bitmap Generation}{35}{subsection.6.2.2}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {8}{\ignorespaces Runtime Bitmap Generation for a Single Query}}{36}{algorithm.8}\protected@file@percent }
+\newlabel{alg:bitmap_gen}{{8}{36}{Runtime Bitmap Generation for a Single Query}{algorithm.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.3}Query Feature Encoding}{36}{section.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.1}Vocabulary Construction}{37}{subsection.6.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.2}Per-Component Encoding}{37}{subsection.6.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Table/Sample Encoding}{37}{subsubsection*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Predicate Encoding}{37}{subsubsection*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Join Encoding}{37}{subsubsection*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.3}Padding and Masking}{37}{subsection.6.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.4}Multi-Set Convolutional Network (MSCN)}{38}{section.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.1}Architecture Overview}{38}{subsection.6.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.2}Set Processing Modules}{38}{subsection.6.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.3}Masked Mean Pooling}{38}{subsection.6.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.4}Output Network}{38}{subsection.6.4.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces Complete MSCN architecture. Each query component (samples, predicates, joins) passes through a dedicated two-layer MLP with dropout, followed by masked mean pooling. The pooled representations are concatenated and processed through an output MLP with sigmoid activation to produce a normalized cardinality estimate $\hat  {y} \in [0, 1]$.}}{39}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:mscn_architecture}{{6.1}{39}{Complete MSCN architecture. Each query component (samples, predicates, joins) passes through a dedicated two-layer MLP with dropout, followed by masked mean pooling. The pooled representations are concatenated and processed through an output MLP with sigmoid activation to produce a normalized cardinality estimate $\hat {y} \in [0, 1]$}{figure.caption.15}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.5}Label Normalization}{40}{subsection.6.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.5}Loss Function: Q-Error}{40}{section.6.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.6}Active Learning Framework}{41}{section.6.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.1}Problem Formulation}{41}{subsection.6.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.2}Acquisition Strategies}{41}{subsection.6.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Random Sampling (Baseline)}{41}{subsubsection*.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Uncertainty Sampling}{41}{subsubsection*.17}\protected@file@percent }
 \citation{gal2016dropout}
-\@writefile{toc}{\contentsline {subsubsection}{MC Dropout Uncertainty}{44}{subsubsection*.22}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6.2}{\ignorespaces Comparison of acquisition strategies. Random sampling (green crosses) selects queries uniformly across the prediction range. Uncertainty sampling (red triangles) concentrates selections around $\hat  {y} = 0.5$ where model uncertainty is highest. The shaded region indicates the high-uncertainty zone.}}{44}{figure.caption.23}\protected@file@percent }
-\newlabel{fig:acquisition_comparison}{{6.2}{44}{Comparison of acquisition strategies. Random sampling (green crosses) selects queries uniformly across the prediction range. Uncertainty sampling (red triangles) concentrates selections around $\hat {y} = 0.5$ where model uncertainty is highest. The shaded region indicates the high-uncertainty zone}{figure.caption.23}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.3}Active Learning Loop}{45}{subsection.6.6.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.4}Label Budget Analysis}{45}{subsection.6.6.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.7}Evaluation Framework}{45}{section.6.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.1}Metrics}{45}{subsection.6.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.2}Learning Curve Visualization}{45}{subsection.6.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.3}Predicted vs.\ Actual Scatter Plot}{45}{subsection.6.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.4}Training Loss Across Rounds}{45}{subsection.6.7.4}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {9}{\ignorespaces Complete Active Learning Loop with Database Labeling}}{46}{algorithm.9}\protected@file@percent }
-\newlabel{alg:active_learning_full}{{9}{46}{Complete Active Learning Loop with Database Labeling}{algorithm.9}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.3}{\ignorespaces Active learning curves showing validation median Q-error versus number of labeled queries for three acquisition strategies. MC Dropout achieves 35\% improvement in sample efficiency over random sampling, while uncertainty sampling achieves 23\% improvement. All strategies start from the same initial training set of 200 queries.}}{47}{figure.caption.24}\protected@file@percent }
-\newlabel{fig:learning_curves_comparison}{{6.3}{47}{Active learning curves showing validation median Q-error versus number of labeled queries for three acquisition strategies. MC Dropout achieves 35\% improvement in sample efficiency over random sampling, while uncertainty sampling achieves 23\% improvement. All strategies start from the same initial training set of 200 queries}{figure.caption.24}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.8}Q-Error Analysis Across Rounds}{47}{section.6.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.8.1}Per-Round Q-Error Statistics}{47}{subsection.6.8.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.8.2}Sample Efficiency}{47}{subsection.6.8.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6.4}{\ignorespaces Predicted vs.\ actual cardinality for the final trained model (log-log scale). Points cluster tightly around the ideal diagonal, indicating accurate predictions across cardinalities spanning 7 orders of magnitude. Dashed gray lines indicate the factor-of-2 boundary.}}{48}{figure.caption.25}\protected@file@percent }
-\newlabel{fig:pred_vs_actual}{{6.4}{48}{Predicted vs.\ actual cardinality for the final trained model (log-log scale). Points cluster tightly around the ideal diagonal, indicating accurate predictions across cardinalities spanning 7 orders of magnitude. Dashed gray lines indicate the factor-of-2 boundary}{figure.caption.25}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.5}{\ignorespaces Training loss curves across five active learning rounds. Each subsequent round starts from a lower loss baseline due to the model retaining learned parameters and receiving additional informative training data from the acquisition process.}}{49}{figure.caption.26}\protected@file@percent }
-\newlabel{fig:training_loss_rounds}{{6.5}{49}{Training loss curves across five active learning rounds. Each subsequent round starts from a lower loss baseline due to the model retaining learned parameters and receiving additional informative training data from the acquisition process}{figure.caption.26}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {6.1}{\ignorespaces Q-error statistics across active learning rounds for different acquisition strategies (lower is better).}}{49}{table.caption.27}\protected@file@percent }
-\newlabel{tab:qerror_stats}{{6.1}{49}{Q-error statistics across active learning rounds for different acquisition strategies (lower is better)}{table.caption.27}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.9}Summary}{50}{section.6.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{\numberline {7}Conclusion}{51}{chapter.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{MC Dropout Uncertainty}{42}{subsubsection*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.3}Active Learning Loop}{42}{subsection.6.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.4}Label Budget Analysis}{42}{subsection.6.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.7}Evaluation Framework}{42}{section.6.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.1}Metrics}{42}{subsection.6.7.1}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {9}{\ignorespaces Complete Active Learning Loop with Database Labeling}}{43}{algorithm.9}\protected@file@percent }
+\newlabel{alg:active_learning_full}{{9}{43}{Complete Active Learning Loop with Database Labeling}{algorithm.9}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.2}Learning Curve Visualization}{44}{subsection.6.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.3}Predicted vs.\ Actual Scatter Plot}{44}{subsection.6.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.4}Training Loss Across Rounds}{44}{subsection.6.7.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.8}Q-Error Analysis Across Rounds}{44}{section.6.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.8.1}Per-Round Q-Error Statistics}{44}{subsection.6.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.8.2}Sample Efficiency}{44}{subsection.6.8.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6.1}{\ignorespaces Q-error statistics across active learning rounds for different acquisition strategies (lower is better).}}{45}{table.caption.19}\protected@file@percent }
+\newlabel{tab:qerror_stats}{{6.1}{45}{Q-error statistics across active learning rounds for different acquisition strategies (lower is better)}{table.caption.19}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.9}Summary}{45}{section.6.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {7}Experimental Results}{46}{chapter.7}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:conclusion}{{7}{51}{Conclusion}{chapter.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.1}Summary of Contributions}{51}{section.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7.2}Impact and Implications}{51}{section.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2.1}Database Systems Research}{51}{subsection.7.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2.2}Practical Applications}{51}{subsection.7.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2.3}Methodological Advances}{52}{subsection.7.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7.3}Limitations and Future Work}{52}{section.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.1}Current Limitations}{52}{subsection.7.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.2}Future Research Directions}{52}{subsection.7.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Advanced Query Generation}{53}{subsubsection*.28}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Enhanced Active Learning}{53}{subsubsection*.29}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{System Integration}{53}{subsubsection*.30}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Theoretical Foundations}{53}{subsubsection*.31}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7.4}Final Remarks}{53}{section.7.4}\protected@file@percent }
+\newlabel{chap:experiments}{{7}{46}{Experimental Results}{chapter.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.1}Experimental Setup}{46}{section.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1.1}Dataset}{46}{subsection.7.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1.2}Configuration}{46}{subsection.7.1.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces Experimental configuration parameters.}}{46}{table.caption.20}\protected@file@percent }
+\newlabel{tab:exp_config}{{7.1}{46}{Experimental configuration parameters}{table.caption.20}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.2}Query Generation Analysis}{46}{section.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2.1}Structural Feature Distributions}{47}{subsection.7.2.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7.1}{\ignorespaces Combined structural feature distributions of the generated query workload. Left: number of tables per query. Center: number of join conditions per query. Right: number of filter predicates per query.}}{47}{figure.caption.21}\protected@file@percent }
+\newlabel{fig:structural_analysis}{{7.1}{47}{Combined structural feature distributions of the generated query workload. Left: number of tables per query. Center: number of join conditions per query. Right: number of filter predicates per query}{figure.caption.21}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.2}{\ignorespaces Distribution of the number of tables per generated query.}}{47}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:tables_distribution}{{7.2}{47}{Distribution of the number of tables per generated query}{figure.caption.22}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.3}{\ignorespaces Distribution of the number of filter predicates per query.}}{47}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:predicates_distribution}{{7.3}{47}{Distribution of the number of filter predicates per query}{figure.caption.22}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2.2}Cardinality Distribution}{47}{subsection.7.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.3}Active Learning and Model Training Results}{47}{section.7.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7.4}{\ignorespaces Distribution of true cardinalities for labeled queries ($\log _{10}$ scale). The distribution spans from single-digit cardinalities to tens of millions of rows, ensuring comprehensive coverage of the selectivity spectrum.}}{48}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:cardinality_dist}{{7.4}{48}{Distribution of true cardinalities for labeled queries ($\log _{10}$ scale). The distribution spans from single-digit cardinalities to tens of millions of rows, ensuring comprehensive coverage of the selectivity spectrum}{figure.caption.23}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.1}Acquisition Strategy Comparison}{48}{subsection.7.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.2}Learning Curves}{48}{subsection.7.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.3}Training Loss Across Rounds}{48}{subsection.7.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.4}Predicted vs.\ Actual Cardinality}{48}{subsection.7.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.5}Q-Error Distribution}{48}{subsection.7.3.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7.5}{\ignorespaces Comparison of acquisition strategies. Random sampling (green crosses) selects queries uniformly across the prediction range. Uncertainty sampling (red triangles) concentrates selections around $\hat  {y} = 0.5$ where model uncertainty is highest. The shaded region indicates the high-uncertainty zone.}}{49}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:acquisition_comparison}{{7.5}{49}{Comparison of acquisition strategies. Random sampling (green crosses) selects queries uniformly across the prediction range. Uncertainty sampling (red triangles) concentrates selections around $\hat {y} = 0.5$ where model uncertainty is highest. The shaded region indicates the high-uncertainty zone}{figure.caption.24}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.4}Pipeline Summary}{49}{section.7.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.5}Discussion}{49}{section.7.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7.6}{\ignorespaces Active learning curve showing validation median Q-error versus number of labeled queries. The decreasing trend demonstrates that the model's estimation accuracy improves as more informative queries are labeled and added to the training set in each active learning round.}}{50}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:learning_curves_comparison}{{7.6}{50}{Active learning curve showing validation median Q-error versus number of labeled queries. The decreasing trend demonstrates that the model's estimation accuracy improves as more informative queries are labeled and added to the training set in each active learning round}{figure.caption.25}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.7}{\ignorespaces Training loss curves across active learning rounds. The decreasing loss trajectory across rounds indicates that the model benefits from the progressively expanding and more informative training set.}}{50}{figure.caption.26}\protected@file@percent }
+\newlabel{fig:training_loss_rounds}{{7.7}{50}{Training loss curves across active learning rounds. The decreasing loss trajectory across rounds indicates that the model benefits from the progressively expanding and more informative training set}{figure.caption.26}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.8}{\ignorespaces Predicted vs.\ actual cardinality for the final trained model (log-log scale). Points clustering around the diagonal indicate accurate predictions across the full cardinality range.}}{51}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:pred_vs_actual}{{7.8}{51}{Predicted vs.\ actual cardinality for the final trained model (log-log scale). Points clustering around the diagonal indicate accurate predictions across the full cardinality range}{figure.caption.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.9}{\ignorespaces Cumulative distribution function (CDF) of Q-errors for the final model.}}{51}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:qerror_cdf}{{7.9}{51}{Cumulative distribution function (CDF) of Q-errors for the final model}{figure.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.10}{\ignorespaces Q-error box plots per active learning round showing improving accuracy.}}{51}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:qerror_boxplot}{{7.10}{51}{Q-error box plots per active learning round showing improving accuracy}{figure.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.11}{\ignorespaces Pipeline summary dashboard showing key metrics from query generation, labeling, training, and evaluation across all active learning rounds.}}{52}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:pipeline_summary}{{7.11}{52}{Pipeline summary dashboard showing key metrics from query generation, labeling, training, and evaluation across all active learning rounds}{figure.caption.29}{}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {8}Conclusion}{53}{chapter.8}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{chap:conclusion}{{8}{53}{Conclusion}{chapter.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8.1}Summary of Contributions}{53}{section.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.2}Impact and Implications}{53}{section.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2.1}Database Systems Research}{53}{subsection.8.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2.2}Practical Applications}{53}{subsection.8.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2.3}Methodological Advances}{54}{subsection.8.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.3}Limitations and Future Work}{54}{section.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.1}Current Limitations}{54}{subsection.8.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.2}Future Research Directions}{54}{subsection.8.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Advanced Query Generation}{55}{subsubsection*.30}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Enhanced Active Learning}{55}{subsubsection*.31}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{System Integration}{55}{subsubsection*.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Theoretical Foundations}{55}{subsubsection*.33}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.4}Final Remarks}{55}{section.8.4}\protected@file@percent }
 \bibstyle{abbrv}
 \bibdata{main}
 \bibcite{DBLP:journals/corr/abs-2512-20271}{1}
@@ -255,4 +275,4 @@
 \bibcite{DBLP:journals/pvldb/WangQWWZ21}{12}
 \babel@aux{ngerman}{}
 \babel@aux{english}{}
-\gdef \@abspage@last{64}
+\gdef \@abspage@last{67}

@@ -431,50 +431,7 @@ where $\bar{y} = \frac{1}{T}\sum_{t=1}^T \hat{y}^{(t)}$ is the mean prediction, 
 
 Queries with the highest variance are selected, as high variance indicates that the model's predictions are sensitive to which neurons are dropped out, implying that the model has not yet learned a stable representation for these queries.
 
-Figure~\ref{fig:acquisition_comparison} illustrates how the three acquisition strategies select different queries from the uncertainty landscape.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}
-    \begin{axis}[
-        width=14cm,
-        height=8cm,
-        xlabel={Query Index (sorted by model prediction)},
-        ylabel={Model Prediction (Normalized)},
-        grid=major,
-        legend style={at={(0.02,0.98)}, anchor=north west, font=\small},
-        ymin=0, ymax=1,
-        xmin=0, xmax=100
-    ]
-    % Model predictions (S-curve)
-    \addplot[blue, thick, smooth, domain=0:100, samples=200] {1/(1+exp(-0.1*(x-50)))};
-    \addlegendentry{Model Predictions}
-
-    % Uncertainty zone
-    \fill[red!15] (axis cs:35,0) rectangle (axis cs:65,1);
-    \node[font=\small, text=red!70] at (axis cs:50,0.15) {High Uncertainty Zone};
-
-    % Random samples
-    \addplot[only marks, mark=x, mark size=4pt, green!70!black, thick] coordinates {
-        (5,0.05) (15,0.1) (25,0.2) (40,0.4) (55,0.6) (70,0.8) (85,0.95) (92,0.99)
-    };
-    \addlegendentry{Random Selection}
-
-    % Uncertainty samples (near 0.5)
-    \addplot[only marks, mark=triangle*, mark size=5pt, red!80] coordinates {
-        (42,0.38) (45,0.42) (48,0.48) (50,0.50) (52,0.53) (55,0.58) (57,0.62)
-    };
-    \addlegendentry{Uncertainty Selection}
-
-    % Midpoint line
-    \draw[dashed, gray, thick] (axis cs:0,0.5) -- (axis cs:100,0.5);
-    \node[font=\scriptsize, text=gray] at (axis cs:10,0.55) {$\hat{y} = 0.5$};
-
-    \end{axis}
-\end{tikzpicture}
-\caption{Comparison of acquisition strategies. Random sampling (green crosses) selects queries uniformly across the prediction range. Uncertainty sampling (red triangles) concentrates selections around $\hat{y} = 0.5$ where model uncertainty is highest. The shaded region indicates the high-uncertainty zone.}
-\label{fig:acquisition_comparison}
-\end{figure}
+The behavior of these three acquisition strategies is compared experimentally in Chapter~\ref{chap:experiments}, where we visualize how each strategy selects queries from different regions of the uncertainty landscape.
 
 
 \subsection{Active Learning Loop}
@@ -560,165 +517,15 @@ The primary evaluation metric is the Q-error, computed at multiple percentiles:
 
 \subsection{Learning Curve Visualization}
 
-Learning curves plot the validation metric (e.g., median Q-error) against the number of labeled training queries. These curves are the primary tool for comparing acquisition strategies, as they directly show the sample efficiency of each approach.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}
-    \begin{axis}[
-        width=14cm,
-        height=8cm,
-        xlabel={Number of Labeled Queries},
-        ylabel={Validation Median Q-Error},
-        legend pos=north east,
-        grid=major,
-        ymode=log,
-        ymin=5, ymax=50,
-        xmin=150, xmax=1100,
-        legend style={font=\small},
-        thick
-    ]
-    \addplot[color=blue, mark=square*, mark size=4pt, line width=1.5pt] coordinates {
-        (200, 35)
-        (400, 24)
-        (600, 18)
-        (800, 14)
-        (1000, 11.5)
-    };
-    \addlegendentry{Random Sampling}
-
-    \addplot[color=red, mark=triangle*, mark size=5pt, line width=1.5pt] coordinates {
-        (200, 35)
-        (400, 20)
-        (600, 14)
-        (800, 10.5)
-        (1000, 8.8)
-    };
-    \addlegendentry{Uncertainty Sampling}
-
-    \addplot[color=green!60!black, mark=*, mark size=4pt, line width=1.5pt] coordinates {
-        (200, 35)
-        (400, 18)
-        (600, 12.5)
-        (800, 9.2)
-        (1000, 7.5)
-    };
-    \addlegendentry{MC Dropout}
-
-    % Improvement annotation
-    \draw[->, thick, red!60] (axis cs:950,11.5) -- (axis cs:950,8.8);
-    \node[font=\scriptsize, text=red!70, rotate=-90] at (axis cs:980, 10) {23\%};
-
-    \draw[->, thick, green!60!black] (axis cs:1050,11.5) -- (axis cs:1050,7.5);
-    \node[font=\scriptsize, text=green!60!black, rotate=-90] at (axis cs:1080, 9.5) {35\%};
-
-    \end{axis}
-\end{tikzpicture}
-\caption{Active learning curves showing validation median Q-error versus number of labeled queries for three acquisition strategies. MC Dropout achieves 35\% improvement in sample efficiency over random sampling, while uncertainty sampling achieves 23\% improvement. All strategies start from the same initial training set of 200 queries.}
-\label{fig:learning_curves_comparison}
-\end{figure}
+Learning curves plot the validation metric (e.g., median Q-error) against the number of labeled training queries. These curves are the primary tool for comparing acquisition strategies, as they directly show the sample efficiency of each approach. The actual learning curves from our experiments are presented in Chapter~\ref{chap:experiments}.
 
 \subsection{Predicted vs.\ Actual Scatter Plot}
 
-The predicted vs.\ actual scatter plot provides a visual assessment of model calibration. Points near the diagonal line $y = x$ indicate accurate predictions, while systematic deviations reveal estimation biases.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}
-    \begin{axis}[
-        width=12cm,
-        height=12cm,
-        xlabel={True Cardinality},
-        ylabel={Predicted Cardinality},
-        xmode=log, ymode=log,
-        grid=major,
-        xmin=1, xmax=1e8,
-        ymin=1, ymax=1e8,
-        legend pos=north west,
-        legend style={font=\small}
-    ]
-    % Ideal line
-    \addplot[red, thick, dashed, domain=1:1e8] {x};
-    \addlegendentry{Ideal ($\hat{y} = y$)}
-
-    % Scatter points (simulated)
-    \addplot[only marks, mark=*, mark size=1.5pt, blue!60, opacity=0.5] coordinates {
-        (10,15) (50,40) (100,130) (200,180) (500,600) (1000,800)
-        (2000,2500) (5000,4500) (10000,12000) (20000,18000)
-        (50000,55000) (100000,90000) (200000,250000) (500000,480000)
-        (1000000,1100000) (5000000,4800000) (10000000,12000000)
-        (15,20) (80,60) (150,200) (350,300) (700,900) (1500,1200)
-        (3000,3500) (7000,6500) (15000,18000) (30000,25000)
-        (70000,80000) (150000,130000) (300000,350000) (700000,650000)
-        (2000000,2200000) (7000000,6500000) (15000000,14000000)
-        (25,18) (120,150) (250,220) (450,500) (850,750) (1800,2000)
-        (4000,3800) (8000,9000) (18000,15000) (40000,45000)
-        (90000,85000) (180000,200000) (400000,380000) (800000,900000)
-        (3000000,3200000) (8000000,7500000)
-    };
-    \addlegendentry{Query Predictions}
-
-    % Factor-of-2 boundaries
-    \addplot[gray, thin, dashed, domain=1:1e8] {2*x};
-    \addplot[gray, thin, dashed, domain=1:1e8] {0.5*x};
-    \node[font=\scriptsize, text=gray, rotate=40] at (axis cs:5e6,1.2e7) {2$\times$ overestimate};
-    \node[font=\scriptsize, text=gray, rotate=40] at (axis cs:2e7,1.2e7) {2$\times$ underestimate};
-
-    \end{axis}
-\end{tikzpicture}
-\caption{Predicted vs.\ actual cardinality for the final trained model (log-log scale). Points cluster tightly around the ideal diagonal, indicating accurate predictions across cardinalities spanning 7 orders of magnitude. Dashed gray lines indicate the factor-of-2 boundary.}
-\label{fig:pred_vs_actual}
-\end{figure}
-
+The predicted vs.\ actual scatter plot provides a visual assessment of model calibration. Points near the diagonal line $y = x$ indicate accurate predictions, while systematic deviations reveal estimation biases. Experimental scatter plots are presented in Chapter~\ref{chap:experiments}.
 
 \subsection{Training Loss Across Rounds}
 
-Figure~\ref{fig:training_loss_rounds} illustrates how the training loss evolves across active learning rounds.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}
-    \begin{axis}[
-        width=14cm,
-        height=7cm,
-        xlabel={Epoch (within round)},
-        ylabel={Training Loss (Mean Q-Error)},
-        grid=major,
-        legend pos=north east,
-        legend style={font=\small},
-        ymin=0,
-        thick
-    ]
-    \addplot[blue, mark=., line width=1.5pt] coordinates {
-        (1,45) (2,32) (3,25) (4,20) (5,17) (6,15) (7,13.5) (8,12.5) (9,11.8) (10,11.2)
-    };
-    \addlegendentry{Round 1}
-
-    \addplot[red, mark=., line width=1.5pt] coordinates {
-        (1,30) (2,22) (3,17) (4,14) (5,12) (6,10.5) (7,9.5) (8,9.0) (9,8.5) (10,8.2)
-    };
-    \addlegendentry{Round 2}
-
-    \addplot[green!60!black, mark=., line width=1.5pt] coordinates {
-        (1,22) (2,16) (3,13) (4,11) (5,9.5) (6,8.5) (7,7.8) (8,7.3) (9,7.0) (10,6.8)
-    };
-    \addlegendentry{Round 3}
-
-    \addplot[orange, mark=., line width=1.5pt] coordinates {
-        (1,18) (2,13) (3,10.5) (4,9) (5,8) (6,7.2) (7,6.7) (8,6.3) (9,6.0) (10,5.8)
-    };
-    \addlegendentry{Round 4}
-
-    \addplot[purple, mark=., line width=1.5pt] coordinates {
-        (1,15) (2,11) (3,9) (4,7.8) (5,7) (6,6.4) (7,6.0) (8,5.7) (9,5.5) (10,5.3)
-    };
-    \addlegendentry{Round 5}
-
-    \end{axis}
-\end{tikzpicture}
-\caption{Training loss curves across five active learning rounds. Each subsequent round starts from a lower loss baseline due to the model retaining learned parameters and receiving additional informative training data from the acquisition process.}
-\label{fig:training_loss_rounds}
-\end{figure}
+Training loss curves show how the loss evolves across active learning rounds. Each subsequent round is expected to start from a lower loss baseline due to the model retaining learned parameters and receiving additional informative training data. Experimental training loss curves are presented in Chapter~\ref{chap:experiments}.
 
 
 \section{Q-Error Analysis Across Rounds}

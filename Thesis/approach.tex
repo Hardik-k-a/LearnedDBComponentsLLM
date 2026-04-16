@@ -3,22 +3,7 @@
 \label{chap:approach}
 \pagestyle{plain}
 
-This chapter presents the comprehensive approach for creating and benchmarking learned database components using large language models (LLMs) and active learning. We begin by motivating the problem and describing the challenges inherent in training data generation for learned cardinality estimation. We then introduce the overall system architecture and describe each pipeline stage at a high level, with the detailed treatment of the query generation and training approaches deferred to subsequent chapters.
-
-\section{Problem Statement and Motivation}
-
-Cardinality estimation---predicting the number of rows returned by a query---is a critical component of modern query optimizers. Accurate cardinality estimates enable the optimizer to select efficient query execution plans, whereas inaccurate estimates can lead to orders-of-magnitude performance degradation. Traditional cardinality estimators rely on histograms, sampling, and independence assumptions, which often yield poor estimates for queries involving correlations, multi-table joins, and skewed data distributions.
-
-Learned cardinality estimators, such as the Multi-Set Convolutional Network (MSCN)~\cite{kipf2018learned}, have demonstrated superior accuracy over traditional methods by training neural networks on workloads of executed queries along with their true cardinalities. However, training these models requires large volumes of labeled data---queries paired with their ground truth result sizes---which are expensive to obtain for several reasons:
-
-\begin{enumerate}
-    \item \textbf{Query Execution Cost}: Each query must be executed against the full database to obtain its true cardinality, which can be computationally expensive, especially for complex joins over large tables.
-    \item \textbf{Workload Diversity}: Training queries must cover a diverse range of table combinations, join patterns, predicate types, and selectivity ranges to ensure the model generalizes well.
-    \item \textbf{Manual Effort}: Handcrafting query workloads is labor-intensive and often results in limited coverage of the query space.
-    \item \textbf{Schema Specificity}: Queries must be tailored to the specific database schema, making it difficult to reuse workloads across different databases.
-\end{enumerate}
-
-These challenges motivate our approach: we propose an automated framework that leverages large language models to generate diverse query workloads and active learning to intelligently select which queries to execute, thereby minimizing the labeling cost while maximizing model accuracy.
+This chapter presents the comprehensive approach for creating and benchmarking learned database components using large language models (LLMs) and active learning. We introduce the overall system architecture and describe each pipeline stage at a high level, with the detailed treatment of the query generation and training approaches deferred to subsequent chapters. Experimental results including workload analysis, learning curves, and model evaluation are presented in Chapter~\ref{chap:experiments}.
 
 \section{Design Principles}
 

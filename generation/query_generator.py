@@ -4,59 +4,497 @@ Generates unlabeled SQL queries using Ollama LLM and converts them
 to MSCN-compatible structured format.
 
 Does NOT execute any query on the database — only generates query structures.
+Includes schema-aware validation to reject invalid queries before they
+enter the pipeline.
 """
 
 import json
 import re
 import time
 import requests
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple, Set
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Schema Validator — parses DDL and validates queries without DB access
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SchemaValidator:
+    """
+    Parses a DDL schema text (CREATE TABLE statements) into a structured
+    representation and validates SQL queries against it.
+
+    No database connection is needed — all validation is purely in-memory.
+    """
+
+    # Column types considered numeric (predicates allowed)
+    NUMERIC_TYPES = {
+        'integer', 'int', 'smallint', 'bigint', 'serial', 'bigserial',
+        'numeric', 'decimal', 'real', 'float', 'double precision',
+        'boolean', 'bool',
+    }
+
+    # Column types considered text (predicates NOT allowed for MSCN)
+    TEXT_TYPES = {
+        'text', 'varchar', 'char', 'character varying', 'character',
+        'bytea', 'uuid', 'json', 'jsonb', 'xml',
+    }
+
+    def __init__(self, schema_text: str, stats_text: str = ""):
+        """
+        Parse DDL schema text and optional stats text.
+
+        Args:
+            schema_text: SQL DDL containing CREATE TABLE statements.
+            stats_text:  Optional column statistics (min, max, cardinality).
+        """
+        # table_name -> {"columns": {col_name: col_type}, "pk": str|None, "fks": {col: "ref_table.ref_col"}}
+        self.tables: Dict[str, Dict] = {}
+        # Set of "table_name.column_name" for numeric columns
+        self.numeric_columns: Set[str] = set()
+        # Set of "table_name.column_name" for text columns
+        self.text_columns: Set[str] = set()
+        # Set of valid join condition strings, e.g. {"title_principals.tconst=title_basics.tconst"}
+        self.valid_joins: Set[Tuple[str, str]] = set()
+        # Column value ranges from stats: "table.column" -> (min, max)
+        self.column_ranges: Dict[str, Tuple[float, float]] = {}
+
+        self._parse_ddl(schema_text)
+        if stats_text:
+            self._parse_stats(stats_text)
+
+    def _parse_ddl(self, ddl: str):
+        """Parse CREATE TABLE statements from DDL text."""
+        # Find all CREATE TABLE blocks
+        pattern = r'CREATE\s+TABLE\s+(\w+)\s*\((.*?)\);'
+        for match in re.finditer(pattern, ddl, re.IGNORECASE | re.DOTALL):
+            table_name = match.group(1).strip().lower()
+            body = match.group(2).strip()
+
+            columns = {}
+            pk = None
+            fks = {}
+
+            # Split body into individual definitions
+            # We need to handle multi-line CONSTRAINT ... FOREIGN KEY blocks
+            defs = self._split_column_defs(body)
+
+            for col_def in defs:
+                col_def = col_def.strip()
+                if not col_def:
+                    continue
+
+                # Check for CONSTRAINT ... FOREIGN KEY
+                fk_match = re.search(
+                    r'FOREIGN\s+KEY\s*\((\w+)\)\s*REFERENCES\s+(\w+)\s*\((\w+)\)',
+                    col_def, re.IGNORECASE
+                )
+                if fk_match:
+                    fk_col = fk_match.group(1).lower()
+                    ref_table = fk_match.group(2).lower()
+                    ref_col = fk_match.group(3).lower()
+                    fks[fk_col] = f"{ref_table}.{ref_col}"
+                    continue
+
+                # Check for standalone CONSTRAINT (non-FK, e.g. CHECK)
+                if re.match(r'CONSTRAINT', col_def, re.IGNORECASE):
+                    continue
+
+                # Check for PRIMARY KEY constraint
+                pk_match = re.match(r'PRIMARY\s+KEY\s*\((.+?)\)', col_def, re.IGNORECASE)
+                if pk_match:
+                    pk = pk_match.group(1).strip().lower()
+                    continue
+
+                # Parse column definition: column_name TYPE [constraints...]
+                col_match = re.match(r'(\w+)\s+(.+)', col_def)
+                if col_match:
+                    col_name = col_match.group(1).lower()
+                    col_type_raw = col_match.group(2).strip().lower()
+
+                    # Extract base type (remove size specs like VARCHAR(10))
+                    col_type = re.split(r'[\s(]', col_type_raw)[0]
+
+                    # Handle "double precision" as a special case
+                    if col_type == 'double' and 'precision' in col_type_raw:
+                        col_type = 'double precision'
+
+                    # Handle "character varying"
+                    if col_type == 'character' and 'varying' in col_type_raw:
+                        col_type = 'character varying'
+
+                    columns[col_name] = col_type
+
+                    # Check for inline PRIMARY KEY
+                    if 'primary key' in col_type_raw:
+                        pk = col_name
+
+                    # Classify column type
+                    full_col = f"{table_name}.{col_name}"
+                    if col_type in self.NUMERIC_TYPES:
+                        self.numeric_columns.add(full_col)
+                    else:
+                        self.text_columns.add(full_col)
+
+            self.tables[table_name] = {
+                "columns": columns,
+                "pk": pk,
+                "fks": fks,
+            }
+
+        # Build valid join pairs from FK relationships
+        self._build_valid_joins()
+
+    def _split_column_defs(self, body: str) -> List[str]:
+        """
+        Split CREATE TABLE body into individual column/constraint definitions.
+        Handles multi-line CONSTRAINT blocks by tracking parenthesis depth.
+        """
+        defs = []
+        current = []
+        depth = 0
+
+        for char in body:
+            if char == '(':
+                depth += 1
+                current.append(char)
+            elif char == ')':
+                depth -= 1
+                current.append(char)
+            elif char == ',' and depth == 0:
+                defs.append(''.join(current).strip())
+                current = []
+            else:
+                current.append(char)
+
+        if current:
+            defs.append(''.join(current).strip())
+
+        return defs
+
+    def _build_valid_joins(self):
+        """Build the set of valid join conditions from FK relationships."""
+        for table_name, info in self.tables.items():
+            for fk_col, ref in info["fks"].items():
+                ref_table, ref_col = ref.split('.')
+                # Store both directions as valid
+                self.valid_joins.add((f"{table_name}.{fk_col}", f"{ref_table}.{ref_col}"))
+                self.valid_joins.add((f"{ref_table}.{ref_col}", f"{table_name}.{fk_col}"))
+
+    def _parse_stats(self, stats_text: str):
+        """Parse column statistics text for value ranges."""
+        # Try to parse lines like: "table.column: min=X, max=Y"
+        # or "column (table): min X, max Y"
+        for line in stats_text.strip().split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+
+            # Pattern: "table.column: min=X, max=Y" or similar
+            match = re.search(
+                r'(\w+\.\w+)\s*:?\s*min\s*[=:]?\s*([\d.]+)\s*,?\s*max\s*[=:]?\s*([\d.]+)',
+                line, re.IGNORECASE
+            )
+            if match:
+                col = match.group(1).lower()
+                min_val = float(match.group(2))
+                max_val = float(match.group(3))
+                self.column_ranges[col] = (min_val, max_val)
+
+    def get_table_names(self) -> List[str]:
+        """Return list of all known table names."""
+        return list(self.tables.keys())
+
+    def get_numeric_columns_for_table(self, table_name: str) -> List[str]:
+        """Return numeric column names for a given table."""
+        result = []
+        table_name = table_name.lower()
+        if table_name in self.tables:
+            for col_name, col_type in self.tables[table_name]["columns"].items():
+                if f"{table_name}.{col_name}" in self.numeric_columns:
+                    result.append(col_name)
+        return result
+
+    def get_valid_joins_for_tables(self, table_names: List[str]) -> List[Tuple[str, str]]:
+        """Return valid join conditions between the given tables."""
+        table_set = {t.lower() for t in table_names}
+        result = []
+        seen = set()
+        for left, right in self.valid_joins:
+            left_table = left.split('.')[0]
+            right_table = right.split('.')[0]
+            if left_table in table_set and right_table in table_set:
+                key = tuple(sorted([left, right]))
+                if key not in seen:
+                    seen.add(key)
+                    result.append((left, right))
+        return result
+
+    def validate_query(self, sql: str) -> Tuple[bool, str]:
+        """
+        Validate a SQL query against the schema.
+
+        Returns:
+            (is_valid, rejection_reason)
+            If valid, rejection_reason is empty string.
+        """
+        sql_clean = sql.strip().rstrip(';')
+        sql_upper = sql_clean.upper()
+
+        # ── Check 1: Must be SELECT COUNT(*) ──
+        if not sql_upper.startswith('SELECT COUNT'):
+            return False, "Not a SELECT COUNT(*) query"
+
+        # ── Check 2: Forbidden SQL patterns ──
+        bad_patterns = [' OR ', ' IN (', ' IN(', ' LIKE ', ' BETWEEN ', ' NOT ',
+                        ' IS NULL', ' IS NOT NULL', ' EXISTS',
+                        ' UNION ', ' HAVING ', ' GROUP BY ', ' ORDER BY ',
+                        ' LIMIT ', ' DISTINCT ', ' CASE ', ' WHEN ']
+        where_idx = sql_upper.find('WHERE')
+        if where_idx > 0:
+            where_clause = sql_upper[where_idx:]
+            for pattern in bad_patterns:
+                if pattern in where_clause:
+                    return False, f"Forbidden SQL pattern: {pattern.strip()}"
+
+        # ── Check 3: No subqueries ──
+        if sql_upper.count('SELECT') > 1:
+            return False, "Contains subquery"
+
+        # ── Check 4: Parse tables from FROM clause ──
+        from_match = re.search(
+            r'\bFROM\b\s+(.+?)(?:\bWHERE\b|\bGROUP\b|\bORDER\b|\bLIMIT\b|$)',
+            sql_clean, re.IGNORECASE | re.DOTALL
+        )
+        if not from_match:
+            return False, "Cannot parse FROM clause"
+
+        from_clause = from_match.group(1).strip()
+        # Split by comma and JOIN keywords
+        table_parts = re.split(
+            r'\b(?:INNER\s+)?(?:LEFT\s+)?(?:RIGHT\s+)?(?:CROSS\s+)?(?:FULL\s+)?JOIN\b|,',
+            from_clause, flags=re.IGNORECASE
+        )
+
+        alias_to_table = {}
+        for part in table_parts:
+            part = part.strip()
+            if not part:
+                continue
+            # Remove ON clause
+            on_idx = re.search(r'\bON\b', part, re.IGNORECASE)
+            if on_idx:
+                part = part[:on_idx.start()].strip()
+
+            tokens = part.split()
+            if not tokens:
+                continue
+
+            table_name = tokens[0].lower()
+            if len(tokens) >= 2 and tokens[1].upper() not in ('ON', 'WHERE', 'JOIN', 'INNER', 'LEFT'):
+                alias = tokens[-1].lower()
+                if tokens[1].upper() == 'AS' and len(tokens) > 2:
+                    alias = tokens[2].lower()
+            else:
+                alias = table_name
+
+            # Validate table exists
+            if table_name not in self.tables:
+                return False, f"Unknown table: {table_name}"
+
+            alias_to_table[alias] = table_name
+
+        if not alias_to_table:
+            return False, "No tables found in FROM clause"
+
+        # ── Check 5: Parse WHERE clause and validate conditions ──
+        where_match = re.search(
+            r'\bWHERE\b\s+(.+?)(?:\bGROUP\b|\bORDER\b|\bLIMIT\b|$)',
+            sql_clean, re.IGNORECASE | re.DOTALL
+        )
+
+        if where_match:
+            where_clause_raw = where_match.group(1).strip()
+            conditions = re.split(r'\bAND\b', where_clause_raw, flags=re.IGNORECASE)
+
+            join_count = 0
+            for cond in conditions:
+                cond = cond.strip().strip('()')
+                if not cond:
+                    continue
+
+                # Check if join condition (col = col)
+                join_match = re.match(r'(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)$', cond.strip())
+                if join_match:
+                    left_alias = join_match.group(1).lower()
+                    left_col = join_match.group(2).lower()
+                    right_alias = join_match.group(3).lower()
+                    right_col = join_match.group(4).lower()
+
+                    # Validate aliases exist
+                    if left_alias not in alias_to_table:
+                        return False, f"Unknown alias in join: {left_alias}"
+                    if right_alias not in alias_to_table:
+                        return False, f"Unknown alias in join: {right_alias}"
+
+                    left_table = alias_to_table[left_alias]
+                    right_table = alias_to_table[right_alias]
+
+                    # Validate columns exist
+                    if left_col not in self.tables[left_table]["columns"]:
+                        return False, f"Unknown column in join: {left_table}.{left_col}"
+                    if right_col not in self.tables[right_table]["columns"]:
+                        return False, f"Unknown column in join: {right_table}.{right_col}"
+
+                    # Validate this is a valid FK join
+                    left_full = f"{left_table}.{left_col}"
+                    right_full = f"{right_table}.{right_col}"
+                    if (left_full, right_full) not in self.valid_joins:
+                        return False, f"Invalid join (not a FK relationship): {left_full} = {right_full}"
+
+                    join_count += 1
+                    continue
+
+                # Check if filter predicate (col op value)
+                pred_match = re.match(r'(\w+)\.(\w+)\s*(=|!=|<>|<=|>=|<|>)\s*(.+)$', cond.strip())
+                if pred_match:
+                    alias = pred_match.group(1).lower()
+                    col = pred_match.group(2).lower()
+                    op = pred_match.group(3)
+                    val = pred_match.group(4).strip().strip("'\"")
+
+                    # Validate alias exists
+                    if alias not in alias_to_table:
+                        return False, f"Unknown alias in predicate: {alias}"
+
+                    table_name = alias_to_table[alias]
+
+                    # Validate column exists
+                    if col not in self.tables[table_name]["columns"]:
+                        return False, f"Unknown column: {table_name}.{col}"
+
+                    # Validate column is numeric
+                    full_col = f"{table_name}.{col}"
+                    if full_col in self.text_columns:
+                        return False, f"Predicate on text column: {full_col}"
+
+                    # Validate value is numeric
+                    try:
+                        float(val)
+                    except ValueError:
+                        return False, f"Non-numeric predicate value: {val} on {full_col}"
+
+                    # Validate operator is supported
+                    if op not in ('=', '<', '>', '<=', '>=', '!=', '<>'):
+                        return False, f"Unsupported operator: {op}"
+
+                    continue
+
+                # If we get here, the condition didn't match any known pattern
+                return False, f"Unparseable condition: {cond.strip()}"
+
+            # Check that multi-table queries have join conditions
+            if len(alias_to_table) > 1 and join_count == 0:
+                return False, "Multi-table query without join conditions"
+
+        else:
+            # No WHERE clause — only valid for single-table queries
+            if len(alias_to_table) > 1:
+                return False, "Multi-table query without WHERE clause"
+
+        return True, ""
+
+    def get_schema_summary_for_prompt(self) -> str:
+        """
+        Generate a concise schema summary with column types clearly annotated.
+        This helps the LLM understand which columns are numeric vs text.
+        """
+        lines = []
+        for table_name, info in self.tables.items():
+            cols = []
+            for col_name, col_type in info["columns"].items():
+                full_col = f"{table_name}.{col_name}"
+                type_label = "NUMERIC" if full_col in self.numeric_columns else "TEXT"
+                pk_label = " [PK]" if col_name == info.get("pk") else ""
+                fk_label = ""
+                if col_name in info.get("fks", {}):
+                    fk_label = f" [FK -> {info['fks'][col_name]}]"
+                cols.append(f"    {col_name} ({col_type}) [{type_label}]{pk_label}{fk_label}")
+
+            lines.append(f"TABLE: {table_name}")
+            lines.extend(cols)
+            lines.append("")
+
+        # Add join info
+        lines.append("VALID JOIN CONDITIONS:")
+        seen = set()
+        for left, right in self.valid_joins:
+            key = tuple(sorted([left, right]))
+            if key not in seen:
+                seen.add(key)
+                lines.append(f"    {left} = {right}")
+
+        return "\n".join(lines)
 
 
 # ── Dynamic Schema Prompt ────────────────────────────────────────────────
 
 GENERATION_PROMPT = """You are a SQL query workload generator for a database.
 
-Here is the database schema:
+Here is the database schema with column types clearly marked:
 {schema}
 
-Here are the column statistics (min, max, cardinality):
+Here are the column statistics (min, max values):
 {stats}
 
 Generate exactly {batch_size} SQL queries. Each query MUST follow these STRICT rules:
-1. Use SELECT COUNT(*) FROM ... WHERE ... format
+1. Use SELECT COUNT(*) FROM ... WHERE ... format ONLY
 2. Use 1-3 tables from the schema above
-3. Use proper table aliases (e.g., table_name t)
-4. Include join conditions using Primary Key / Foreign Key relationships defined in the schema
-5. Include 0-4 filter predicates using ONLY =, <, > operators with NUMERIC values
-6. Use realistic filter values within the column ranges specified in the stats
-7. ALL conditions in WHERE must be connected with AND only
-8. Do NOT use OR, IN, LIKE, IS NULL, IS NOT NULL, BETWEEN, NOT, subqueries, or any other complex SQL
-9. Each predicate must be a simple: column operator value (e.g., t.col > 100)
+3. Use proper table aliases (e.g., title_basics tb)
+4. For multi-table queries, ALWAYS include join conditions using ONLY the VALID JOIN CONDITIONS listed above
+5. Include 0-4 filter predicates using ONLY =, <, > operators
+6. Use ONLY [NUMERIC] columns for filter predicates — NEVER use [TEXT] columns in predicates
+7. Use ONLY integer numeric values in predicates — NEVER use string values like 'Drama' or 'Action'
+8. ALL conditions in WHERE must be connected with AND only
+9. Do NOT use OR, IN, LIKE, IS NULL, IS NOT NULL, BETWEEN, NOT, subqueries, DISTINCT, HAVING, GROUP BY, ORDER BY, LIMIT
+10. Each predicate must be a simple: alias.column operator integer_value (e.g., tb.startYear > 2000)
 
-IMPORTANT: Use ONLY the columns and tables listed above. Do NOT invent columns.
-IMPORTANT: Do NOT use string values in predicates. Use only numeric integer values.
-IMPORTANT: Do NOT combine multiple conditions with OR. Use ONLY AND.
+EXAMPLES OF VALID QUERIES:
+{{"sql": "SELECT COUNT(*) FROM title_basics tb WHERE tb.startYear > 2000 AND tb.runtimeMinutes < 120"}}
+{{"sql": "SELECT COUNT(*) FROM title_basics tb, title_ratings tr WHERE tb.tconst = tr.tconst AND tr.num_votes > 1000"}}
+{{"sql": "SELECT COUNT(*) FROM title_basics tb, title_principals tp, name_basics nb WHERE tb.tconst = tp.tconst AND tp.nconst = nb.nconst AND tb.startYear > 1990"}}
 
-Vary the complexity: some single-table queries, some 2-table joins, some 3-table joins.
-Mix of different filter counts and operator types.
+EXAMPLES OF INVALID QUERIES (DO NOT GENERATE THESE):
+- Using text columns: WHERE tb.genres = 'Drama'  (WRONG — genres is TEXT)
+- Using string values: WHERE tb.primaryTitle = 'Inception'  (WRONG — string value)
+- Missing join: SELECT COUNT(*) FROM title_basics tb, title_ratings tr WHERE tr.num_votes > 100  (WRONG — no join condition)
+- Using OR: WHERE tb.startYear > 2000 OR tb.runtimeMinutes < 90  (WRONG — uses OR)
 
 {diversity_hint}
 
 Return ONLY a JSON array of objects, each with a "sql" field:
 [
-  {{"sql": "SELECT COUNT(*) FROM table1 t1 WHERE t1.col1 = 1 AND t1.col2 > 2000"}},
-  {{"sql": "SELECT COUNT(*) FROM table1 t1, table2 t2 WHERE t1.id = t2.fk_id AND t2.col < 5"}},
+  {{"sql": "SELECT COUNT(*) FROM title_basics tb WHERE tb.startYear > 2000 AND tb.runtimeMinutes < 120"}},
+  {{"sql": "SELECT COUNT(*) FROM title_basics tb, title_ratings tr WHERE tb.tconst = tr.tconst AND tr.num_votes > 1000"}},
   ...
 ]
 """
 
 
-def validate_sql(sql: str) -> bool:
+def validate_sql(sql: str, schema_validator: Optional['SchemaValidator'] = None) -> bool:
     """
-    Basic validation to reject obviously malformed SQL before sending to DB.
-    Returns True if the query looks safe to attempt.
+    Validate a SQL query. Uses schema-aware validation if a SchemaValidator
+    is provided, otherwise falls back to basic keyword filtering.
+
+    Returns True if the query is valid.
     """
+    if schema_validator is not None:
+        is_valid, reason = schema_validator.validate_query(sql)
+        if not is_valid:
+            print(f"  [schema-reject] {reason}: {sql[:100]}...")
+        return is_valid
+
+    # Fallback: basic validation (no schema context)
     sql_upper = sql.upper().strip()
 
     if not sql_upper.startswith("SELECT COUNT"):
@@ -127,8 +565,13 @@ def generate_queries_batch(batch_size: int,
                             model_name: str = "llama3.2",
                             ollama_url: str = "http://localhost:11434",
                             existing_count: int = 0,
-                            max_retries: int = 3) -> List[str]:
-    """Generate a batch of SQL queries using Ollama."""
+                            max_retries: int = 3,
+                            schema_validator: Optional[SchemaValidator] = None) -> List[str]:
+    """
+    Generate a batch of SQL queries using Ollama.
+    If a SchemaValidator is provided, each query is validated against the schema
+    and invalid queries are filtered out.
+    """
     diversity_hints = [
         "Focus on single-table queries with various filters.",
         "Focus on 2-table join queries with 1-2 predicates.",
@@ -140,10 +583,19 @@ def generate_queries_batch(batch_size: int,
     hint_idx = (existing_count // batch_size) % len(diversity_hints)
     diversity_hint = f"Hint: {diversity_hints[hint_idx]}"
 
+    # Use the enhanced schema summary if validator is available
+    if schema_validator is not None:
+        schema_for_prompt = schema_validator.get_schema_summary_for_prompt()
+    else:
+        schema_for_prompt = schema_text
+
+    # Request extra queries to compensate for validation rejections
+    request_size = int(batch_size * 1.3) if schema_validator else batch_size
+
     prompt = GENERATION_PROMPT.format(
-        schema=schema_text,
+        schema=schema_for_prompt,
         stats=stats_text or "No specific stats available.",
-        batch_size=batch_size,
+        batch_size=request_size,
         diversity_hint=diversity_hint,
     )
 
@@ -160,12 +612,22 @@ def generate_queries_batch(batch_size: int,
             continue
 
         sqls = []
+        rejected = 0
         for q in queries_json:
             if isinstance(q, dict) and "sql" in q:
-                sqls.append(q["sql"])
+                sql = q["sql"]
+                if schema_validator is not None:
+                    is_valid, reason = schema_validator.validate_query(sql)
+                    if not is_valid:
+                        rejected += 1
+                        continue
+                sqls.append(sql)
+
+        if rejected > 0:
+            print(f"[query_generator] Batch {attempt + 1}: accepted {len(sqls)}, rejected {rejected}")
 
         if sqls:
-            return sqls
+            return sqls[:batch_size]  # Trim to requested size
 
     print(f"[query_generator] All {max_retries} attempts failed for batch")
     return []
@@ -176,21 +638,43 @@ def generate_all_queries(total_queries: int,
                           stats_text: str,
                           batch_size: int = 20,
                           model_name: str = "llama3.2",
-                          ollama_url: str = "http://localhost:11434") -> List[str]:
-    """Generate the full set of unlabeled SQL queries."""
+                          ollama_url: str = "http://localhost:11434",
+                          schema_validator: Optional[SchemaValidator] = None) -> List[str]:
+    """
+    Generate the full set of unlabeled SQL queries.
+    
+    If schema_validator is provided, queries are validated against the schema
+    during generation (not after), ensuring only valid queries are returned.
+    """
     all_sqls = []
     num_batches = (total_queries + batch_size - 1) // batch_size
 
+    # Build schema validator from DDL if not provided
+    if schema_validator is None and schema_text:
+        try:
+            schema_validator = SchemaValidator(schema_text, stats_text)
+            print(f"[query_generator] Built schema validator: {len(schema_validator.tables)} tables, "
+                  f"{len(schema_validator.numeric_columns)} numeric cols, "
+                  f"{len(schema_validator.valid_joins)//2} join conditions")
+        except Exception as e:
+            print(f"[query_generator] WARNING: Could not build schema validator: {e}")
+            schema_validator = None
+
     print(f"[query_generator] Generating {total_queries} queries in {num_batches} batches...")
 
-    for b in range(num_batches):
+    consecutive_empty = 0
+    for b in range(num_batches * 2):  # Allow extra batches to compensate for rejections
         remaining = total_queries - len(all_sqls)
         current_batch_size = min(batch_size, remaining)
 
         if current_batch_size <= 0:
             break
 
-        print(f"[query_generator] Batch {b + 1}/{num_batches} (have {len(all_sqls)}, need {remaining} more)")
+        if consecutive_empty >= 5:
+            print(f"[query_generator] WARNING: 5 consecutive empty batches. Stopping generation.")
+            break
+
+        print(f"[query_generator] Batch {b + 1} (have {len(all_sqls)}, need {remaining} more)")
 
         sqls = generate_queries_batch(
             batch_size=current_batch_size,
@@ -199,20 +683,28 @@ def generate_all_queries(total_queries: int,
             model_name=model_name,
             ollama_url=ollama_url,
             existing_count=len(all_sqls),
+            schema_validator=schema_validator,
         )
 
-        all_sqls.extend(sqls)
-        print(f"[query_generator] Got {len(sqls)} queries (total: {len(all_sqls)})")
+        if sqls:
+            all_sqls.extend(sqls)
+            consecutive_empty = 0
+            print(f"[query_generator] Got {len(sqls)} valid queries (total: {len(all_sqls)})")
+        else:
+            consecutive_empty += 1
+            print(f"[query_generator] Empty batch ({consecutive_empty} consecutive)")
+
         time.sleep(0.5)
 
     all_sqls = all_sqls[:total_queries]
-    print(f"[query_generator] Generation complete: {len(all_sqls)} queries")
+    print(f"[query_generator] Generation complete: {len(all_sqls)} valid queries")
     return all_sqls
 
 
 def generate_synthetic_queries(num_queries: int, seed: int = 42) -> List[Dict]:
     """
     Generate synthetic queries programmatically (no LLM needed).
+    Uses the IMDB schema tables that match the actual database.
     Useful for testing or when Ollama is not available.
     """
     import random
@@ -222,67 +714,63 @@ def generate_synthetic_queries(num_queries: int, seed: int = 42) -> List[Dict]:
     np_rng = np.random.RandomState(seed)
 
     table_defs = {
-        "title t": {
+        "title_basics tb": {
             "columns": [
-                ("t.kind_id", 1, 7),
-                ("t.production_year", 1880, 2019),
+                ("tb.startyear", 1880, 2025),
+                ("tb.runtimeminutes", 1, 600),
             ],
         },
-        "cast_info ci": {
+        "title_ratings tr": {
             "columns": [
-                ("ci.person_id", 1, 4061926),
-                ("ci.role_id", 1, 11),
+                ("tr.average_rating", 1, 10),
+                ("tr.num_votes", 1, 2500000),
             ],
         },
-        "movie_info mi": {
+        "title_principals tp": {
             "columns": [
-                ("mi.info_type_id", 1, 110),
+                ("tp.ordering", 1, 50),
             ],
         },
-        "movie_info_idx mi_idx": {
+        "name_basics nb": {
             "columns": [
-                ("mi_idx.info_type_id", 99, 113),
-            ],
-        },
-        "movie_companies mc": {
-            "columns": [
-                ("mc.company_id", 1, 234997),
-                ("mc.company_type_id", 1, 2),
-            ],
-        },
-        "movie_keyword mk": {
-            "columns": [
-                ("mk.keyword_id", 1, 134170),
+                ("nb.birthyear", 1800, 2005),
+                ("nb.deathyear", 1900, 2025),
             ],
         },
     }
 
     join_map = {
-        "cast_info ci": "t.id=ci.movie_id",
-        "movie_info mi": "t.id=mi.movie_id",
-        "movie_info_idx mi_idx": "t.id=mi_idx.movie_id",
-        "movie_companies mc": "t.id=mc.movie_id",
-        "movie_keyword mk": "t.id=mk.movie_id",
+        "title_ratings tr": "tb.tconst=tr.tconst",
+        "title_principals tp": "tb.tconst=tp.tconst",
+        "name_basics nb": "tp.nconst=nb.nconst",
+    }
+
+    # name_basics requires title_principals as intermediate join
+    join_requires = {
+        "name_basics nb": "title_principals tp",
     }
 
     all_tables = list(table_defs.keys())
-    other_tables = [t for t in all_tables if t != "title t"]
+    # Only allow single-table queries on tables that work standalone
+    single_table_choices = ["title_basics tb", "title_ratings tr"]
+    # For multi-table, join only with title_basics as hub
+    multi_table_extras = ["title_ratings tr", "title_principals tp"]
     operators = ["=", "<", ">"]
 
     queries = []
 
     for _ in range(num_queries):
-        num_tables = random.choices([1, 2, 3], weights=[0.3, 0.4, 0.3])[0]
+        num_tables = random.choices([1, 2], weights=[0.4, 0.6])[0]
 
         if num_tables == 1:
-            chosen = [random.choice(all_tables)]
+            chosen = [random.choice(single_table_choices)]
         else:
-            extra = random.sample(other_tables, min(num_tables - 1, len(other_tables)))
-            chosen = ["title t"] + extra
+            extra = [random.choice(multi_table_extras)]
+            chosen = ["title_basics tb"] + extra
 
         joins = []
         for t in chosen:
-            if t in join_map and "title t" in chosen:
+            if t in join_map and ("title_basics tb" in chosen or "title_principals tp" in chosen):
                 joins.append(join_map[t])
 
         num_preds = random.randint(0, min(4, sum(len(table_defs[t]["columns"]) for t in chosen)))
@@ -307,3 +795,4 @@ def generate_synthetic_queries(num_queries: int, seed: int = 42) -> List[Dict]:
         })
 
     return queries
+
