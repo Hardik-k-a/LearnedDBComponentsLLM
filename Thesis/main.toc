@@ -112,26 +112,25 @@
 \contentsline {subsection}{\numberline {7.2.1}Structural Feature Distributions}{47}{subsection.7.2.1}%
 \contentsline {subsection}{\numberline {7.2.2}Cardinality Distribution}{47}{subsection.7.2.2}%
 \contentsline {section}{\numberline {7.3}Active Learning and Model Training Results}{47}{section.7.3}%
-\contentsline {subsection}{\numberline {7.3.1}Acquisition Strategy Comparison}{48}{subsection.7.3.1}%
-\contentsline {subsection}{\numberline {7.3.2}Learning Curves}{48}{subsection.7.3.2}%
-\contentsline {subsection}{\numberline {7.3.3}Training Loss Across Rounds}{48}{subsection.7.3.3}%
-\contentsline {subsection}{\numberline {7.3.4}Predicted vs.\ Actual Cardinality}{48}{subsection.7.3.4}%
-\contentsline {subsection}{\numberline {7.3.5}Q-Error Distribution}{48}{subsection.7.3.5}%
-\contentsline {section}{\numberline {7.4}Pipeline Summary}{49}{section.7.4}%
-\contentsline {section}{\numberline {7.5}Discussion}{49}{section.7.5}%
-\contentsline {chapter}{\numberline {8}Conclusion}{53}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Summary of Contributions}{53}{section.8.1}%
-\contentsline {section}{\numberline {8.2}Impact and Implications}{53}{section.8.2}%
-\contentsline {subsection}{\numberline {8.2.1}Database Systems Research}{53}{subsection.8.2.1}%
-\contentsline {subsection}{\numberline {8.2.2}Practical Applications}{53}{subsection.8.2.2}%
-\contentsline {subsection}{\numberline {8.2.3}Methodological Advances}{54}{subsection.8.2.3}%
-\contentsline {section}{\numberline {8.3}Limitations and Future Work}{54}{section.8.3}%
-\contentsline {subsection}{\numberline {8.3.1}Current Limitations}{54}{subsection.8.3.1}%
-\contentsline {subsection}{\numberline {8.3.2}Future Research Directions}{54}{subsection.8.3.2}%
-\contentsline {subsubsection}{Advanced Query Generation}{55}{subsubsection*.30}%
-\contentsline {subsubsection}{Enhanced Active Learning}{55}{subsubsection*.31}%
-\contentsline {subsubsection}{System Integration}{55}{subsubsection*.32}%
-\contentsline {subsubsection}{Theoretical Foundations}{55}{subsubsection*.33}%
-\contentsline {section}{\numberline {8.4}Final Remarks}{55}{section.8.4}%
+\contentsline {subsection}{\numberline {7.3.1}Learning Curves}{48}{subsection.7.3.1}%
+\contentsline {subsection}{\numberline {7.3.2}Training Loss Across Rounds}{48}{subsection.7.3.2}%
+\contentsline {subsection}{\numberline {7.3.3}Predicted vs.\ Actual Cardinality}{48}{subsection.7.3.3}%
+\contentsline {subsection}{\numberline {7.3.4}Q-Error Distribution}{48}{subsection.7.3.4}%
+\contentsline {section}{\numberline {7.4}Pipeline Summary}{48}{section.7.4}%
+\contentsline {section}{\numberline {7.5}Discussion}{48}{section.7.5}%
+\contentsline {chapter}{\numberline {8}Conclusion}{52}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Summary of Contributions}{52}{section.8.1}%
+\contentsline {section}{\numberline {8.2}Impact and Implications}{52}{section.8.2}%
+\contentsline {subsection}{\numberline {8.2.1}Database Systems Research}{52}{subsection.8.2.1}%
+\contentsline {subsection}{\numberline {8.2.2}Practical Applications}{52}{subsection.8.2.2}%
+\contentsline {subsection}{\numberline {8.2.3}Methodological Advances}{53}{subsection.8.2.3}%
+\contentsline {section}{\numberline {8.3}Limitations and Future Work}{53}{section.8.3}%
+\contentsline {subsection}{\numberline {8.3.1}Current Limitations}{53}{subsection.8.3.1}%
+\contentsline {subsection}{\numberline {8.3.2}Future Research Directions}{53}{subsection.8.3.2}%
+\contentsline {subsubsection}{Advanced Query Generation}{54}{subsubsection*.29}%
+\contentsline {subsubsection}{Enhanced Active Learning}{54}{subsubsection*.30}%
+\contentsline {subsubsection}{System Integration}{54}{subsubsection*.31}%
+\contentsline {subsubsection}{Theoretical Foundations}{54}{subsubsection*.32}%
+\contentsline {section}{\numberline {8.4}Final Remarks}{54}{section.8.4}%
 \babel@toc {ngerman}{}\relax 
 \babel@toc {english}{}\relax 

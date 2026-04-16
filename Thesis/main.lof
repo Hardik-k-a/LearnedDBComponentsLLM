@@ -17,13 +17,12 @@
 \contentsline {figure}{\numberline {7.2}{\ignorespaces Distribution of the number of tables per generated query.}}{47}{figure.caption.22}%
 \contentsline {figure}{\numberline {7.3}{\ignorespaces Distribution of the number of filter predicates per query.}}{47}{figure.caption.22}%
 \contentsline {figure}{\numberline {7.4}{\ignorespaces Distribution of true cardinalities for labeled queries ($\log _{10}$ scale). The distribution spans from single-digit cardinalities to tens of millions of rows, ensuring comprehensive coverage of the selectivity spectrum.}}{48}{figure.caption.23}%
-\contentsline {figure}{\numberline {7.5}{\ignorespaces Comparison of acquisition strategies. Random sampling (green crosses) selects queries uniformly across the prediction range. Uncertainty sampling (red triangles) concentrates selections around $\hat {y} = 0.5$ where model uncertainty is highest. The shaded region indicates the high-uncertainty zone.}}{49}{figure.caption.24}%
-\contentsline {figure}{\numberline {7.6}{\ignorespaces Active learning curve showing validation median Q-error versus number of labeled queries. The decreasing trend demonstrates that the model's estimation accuracy improves as more informative queries are labeled and added to the training set in each active learning round.}}{50}{figure.caption.25}%
-\contentsline {figure}{\numberline {7.7}{\ignorespaces Training loss curves across active learning rounds. The decreasing loss trajectory across rounds indicates that the model benefits from the progressively expanding and more informative training set.}}{50}{figure.caption.26}%
-\contentsline {figure}{\numberline {7.8}{\ignorespaces Predicted vs.\ actual cardinality for the final trained model (log-log scale). Points clustering around the diagonal indicate accurate predictions across the full cardinality range.}}{51}{figure.caption.27}%
-\contentsline {figure}{\numberline {7.9}{\ignorespaces Cumulative distribution function (CDF) of Q-errors for the final model.}}{51}{figure.caption.28}%
-\contentsline {figure}{\numberline {7.10}{\ignorespaces Q-error box plots per active learning round showing improving accuracy.}}{51}{figure.caption.28}%
-\contentsline {figure}{\numberline {7.11}{\ignorespaces Pipeline summary dashboard showing key metrics from query generation, labeling, training, and evaluation across all active learning rounds.}}{52}{figure.caption.29}%
+\contentsline {figure}{\numberline {7.5}{\ignorespaces Active learning curve showing validation median Q-error versus number of labeled queries. The decreasing trend demonstrates that the model's estimation accuracy improves as more informative queries are labeled and added to the training set in each active learning round.}}{49}{figure.caption.24}%
+\contentsline {figure}{\numberline {7.6}{\ignorespaces Training loss curves across active learning rounds. The decreasing loss trajectory across rounds indicates that the model benefits from the progressively expanding and more informative training set.}}{49}{figure.caption.25}%
+\contentsline {figure}{\numberline {7.7}{\ignorespaces Predicted vs.\ actual cardinality for the final trained model (log-log scale). Points clustering around the diagonal indicate accurate predictions across the full cardinality range.}}{50}{figure.caption.26}%
+\contentsline {figure}{\numberline {7.8}{\ignorespaces Cumulative distribution function (CDF) of Q-errors for the final model.}}{50}{figure.caption.27}%
+\contentsline {figure}{\numberline {7.9}{\ignorespaces Q-error box plots per active learning round showing improving accuracy.}}{50}{figure.caption.27}%
+\contentsline {figure}{\numberline {7.10}{\ignorespaces Pipeline summary dashboard showing key metrics from query generation, labeling, training, and evaluation across all active learning rounds.}}{51}{figure.caption.28}%
 \addvspace {10\p@ }
 \babel@toc {ngerman}{}\relax 
 \babel@toc {english}{}\relax 

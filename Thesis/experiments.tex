@@ -94,52 +94,6 @@ Figure~\ref{fig:cardinality_dist} shows the distribution of true cardinalities f
 
 This section presents the results from the active learning loop, including acquisition strategy comparison, model convergence, and prediction accuracy.
 
-\subsection{Acquisition Strategy Comparison}
-
-Figure~\ref{fig:acquisition_comparison} visualizes how the three acquisition strategies (random, uncertainty, MC dropout) select queries from different regions of the model's prediction space. Random sampling selects uniformly, while uncertainty-based methods concentrate on queries where the model is least confident.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}
-    \begin{axis}[
-        width=14cm,
-        height=8cm,
-        xlabel={Query Index (sorted by model prediction)},
-        ylabel={Model Prediction (Normalized)},
-        grid=major,
-        legend style={at={(0.02,0.98)}, anchor=north west, font=\small},
-        ymin=0, ymax=1,
-        xmin=0, xmax=100
-    ]
-    % Model predictions (S-curve)
-    \addplot[blue, thick, smooth, domain=0:100, samples=200] {1/(1+exp(-0.1*(x-50)))};
-    \addlegendentry{Model Predictions}
-
-    % Uncertainty zone
-    \fill[red!15] (axis cs:35,0) rectangle (axis cs:65,1);
-    \node[font=\small, text=red!70] at (axis cs:50,0.15) {High Uncertainty Zone};
-
-    % Random samples
-    \addplot[only marks, mark=x, mark size=4pt, green!70!black, thick] coordinates {
-        (5,0.05) (15,0.1) (25,0.2) (40,0.4) (55,0.6) (70,0.8) (85,0.95) (92,0.99)
-    };
-    \addlegendentry{Random Selection}
-
-    % Uncertainty samples (near 0.5)
-    \addplot[only marks, mark=triangle*, mark size=5pt, red!80] coordinates {
-        (42,0.38) (45,0.42) (48,0.48) (50,0.50) (52,0.53) (55,0.58) (57,0.62)
-    };
-    \addlegendentry{Uncertainty Selection}
-
-    % Midpoint line
-    \draw[dashed, gray, thick] (axis cs:0,0.5) -- (axis cs:100,0.5);
-    \node[font=\scriptsize, text=gray] at (axis cs:10,0.55) {$\hat{y} = 0.5$};
-
-    \end{axis}
-\end{tikzpicture}
-\caption{Comparison of acquisition strategies. Random sampling (green crosses) selects queries uniformly across the prediction range. Uncertainty sampling (red triangles) concentrates selections around $\hat{y} = 0.5$ where model uncertainty is highest. The shaded region indicates the high-uncertainty zone.}
-\label{fig:acquisition_comparison}
-\end{figure}
 
 
 \subsection{Learning Curves}
