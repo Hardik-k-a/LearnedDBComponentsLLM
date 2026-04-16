@@ -445,8 +445,9 @@ Algorithm~\ref{alg:active_learning_full} presents the complete active learning p
 \Procedure{ActiveLearningLoop}{queries, val\_set, config}
     \State \Comment{--- Initialization ---}
     \State pool, unlabeled $\gets$ SplitPool(queries)
-    \State labeled $\gets$ pool[:config.acquire]
-    \State unlabeled $\gets$ pool[config.acquire:]
+    \State init\_size $\gets \lfloor 0.2 \times |$pool$| \rfloor$ \Comment{Use 20\% of pool as initial set}
+    \State labeled $\gets$ pool[:init\_size]
+    \State unlabeled $\gets$ pool[init\_size:]
     \State LabelQueries(labeled, db\_cursor) \Comment{Initial labeling}
     \State GenerateBitmaps(labeled)
     \State model $\gets$ InitMSCN(config.hid\_units)
@@ -495,10 +496,11 @@ Algorithm~\ref{alg:active_learning_full} presents the complete active learning p
 The total number of queries labeled across the active learning process is:
 
 \begin{equation}
-|\mathcal{L}_{\text{total}}| = |\mathcal{L}_{\text{initial}}| + R \times k_{\text{acquire}} + |\mathcal{V}|
+|\mathcal{L}_{\text{total}}| = \lfloor 0.2 \times |\mathcal{P}| \rfloor + R \times k_{\text{acquire}} + |\mathcal{V}|
 \end{equation}
 
-where $R$ is the number of rounds, $k_{\text{acquire}}$ is the per-round acquisition size, and $|\mathcal{V}|$ is the validation set size. With default parameters ($R = 5$, $k = 200$, $|\mathcal{V}| \approx 500$), the total labeled set size is approximately 1700 queries---just 34\% of the 5000-query pool.
+where $|\mathcal{P}|$ is the pool size, $R$ is the number of rounds, $k_{\text{acquire}}$ is the per-round acquisition size, and $|\mathcal{V}|$ is the validation set size. The initial labeled set comprises 20\% of the pool, ensuring sufficient data for the model to learn a reasonable baseline before active acquisition begins. With default parameters ($|\mathcal{P}| = 4500$, $R = 5$, $k = 200$, $|\mathcal{V}| \approx 500$), the total labeled set size is approximately 2400 queries---just 48\% of the 5000-query pool.
+
 
 
 \section{Evaluation Framework}
