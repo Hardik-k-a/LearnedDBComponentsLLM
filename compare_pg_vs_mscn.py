@@ -1,5 +1,6 @@
 import sys
 import os
+import argparse
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -41,12 +42,18 @@ def get_pg_estimates(cursor, queries):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Compare PostgreSQL Optimizer vs MSCN Model")
+    parser.add_argument("--total-queries", type=int, default=150, help="Number of queries to generate (default: 150)")
+    parser.add_argument("--epochs", type=int, default=20, help="Number of MSCN training epochs (default: 20)")
+    parser.add_argument("--db-timeout", type=int, default=5000, help="Per-query database timeout in ms (default: 5000)")
+    args = parser.parse_args()
+
     print("="*60)
     print(" COMPARISON: PostgreSQL Optimizer vs MSCN Model")
     print("="*60)
 
     # 1. Generate synthetic queries
-    num_queries = 150
+    num_queries = args.total_queries
     print(f"Generating {num_queries} synthetic queries...")
     all_queries = generate_synthetic_queries(num_queries=num_queries)
     
@@ -54,7 +61,7 @@ def main():
     conn = get_connection()
     cursor = conn.cursor()
     print("Executing COUNT(*) to get true cardinalities...")
-    label_queries(cursor, all_queries, timeout=5000)
+    label_queries(cursor, all_queries, timeout=args.db_timeout)
     conn.commit()
 
     # Filter out timeouts
@@ -120,8 +127,8 @@ def main():
     model = SetConv(sample_feats, predicate_feats, join_feats, 128)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     
-    print("\nTraining MSCN for 20 epochs...")
-    train_model(model, train_loader, min_val, max_val, 20, optimizer)
+    print(f"\nTraining MSCN for {args.epochs} epochs...")
+    train_model(model, train_loader, min_val, max_val, args.epochs, optimizer)
     
     print("\nEvaluating MSCN on test set...")
     mscn_preds_norm, _ = predict(model, test_loader)
