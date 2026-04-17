@@ -118,6 +118,9 @@ def label_queries(cursor,
     labeled_count = 0
 
     for i, q in enumerate(queries):
+        if (i + 1) % 10 == 0:
+            print(f"  [db_labeler] Labeled {i+1}/{len(queries)} queries...", flush=True)
+            
         if q.get("cardinality") is not None:
             labeled_count += 1
             continue
@@ -163,3 +166,23 @@ def label_queries_from_indices(cursor,
     """
     subset = [all_queries[i] for i in indices]
     return label_queries(cursor, subset, timeout=timeout)
+
+def get_pg_estimates(cursor, queries):
+    """Fetch native optimizer estimates using EXPLAIN."""
+    estimates = []
+    print("  [db_labeler] Fetching PostgreSQL Optimizer native estimates...")
+    for i, q in enumerate(queries):
+        if (i + 1) % 50 == 0:
+            print(f"    [pg_estimates] EXPLAIN {i+1}/{len(queries)} queries...", flush=True)
+            
+        sql = reconstruct_sql(q.get("tables", []), q.get("joins", []), q.get("predicates", []))
+        sql_explain = sql.replace("SELECT COUNT(*)", "SELECT *")
+        try:
+            cursor.execute(f"EXPLAIN (FORMAT JSON) {sql_explain}")
+            plan = cursor.fetchone()[0][0]
+            est = plan['Plan'].get('Plan Rows', 1)
+            estimates.append(max(est, 1))
+        except Exception as e:
+            estimates.append(1)
+            cursor.connection.rollback()
+    return estimates

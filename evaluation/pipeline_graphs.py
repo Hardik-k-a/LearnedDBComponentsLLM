@@ -408,11 +408,12 @@ def plot_pipeline_summary(labeled_sizes, median_errors, all_epoch_losses,
     _save(fig, output_dir, "analysis_pipeline_summary.png")
 
 
-def plot_labeling_efficiency(labeling_times, total_pool_size, strategy, output_dir):
+def plot_labeling_efficiency(labeling_times, median_errors, total_pool_size, strategy, output_dir):
     """15. Labeling Efficiency: AL cumulative time vs supervised all-at-once baseline.
 
     Args:
         labeling_times: [(round, num_queries_labeled, elapsed_seconds), ...]
+        median_errors: List of median Q-errors per round
         total_pool_size: Total number of pool queries (supervised labels all at start)
         strategy: Active learning strategy name
         output_dir: Directory to save the graph
@@ -435,25 +436,25 @@ def plot_labeling_efficiency(labeling_times, total_pool_size, strategy, output_d
     avg_time_per_query = total_al_time / total_al_queries if total_al_queries > 0 else 0
     supervised_time = total_pool_size * avg_time_per_query
 
-    fig, ax1 = plt.subplots(figsize=(12, 7))
+    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(12, 10), sharex=True, gridspec_kw={'height_ratios': [1.5, 1]})
 
     # Add vertical padding so legend and upper lines do not overlap
     max_y = max(supervised_time, cum_times[-1]) if len(cum_times) > 0 else supervised_time
     if max_y > 0:
         ax1.set_ylim(0, max_y * 1.35)
 
-    # Bar chart: per-round batch labeling time
+    # Bar chart: per-round batch labeling time (ax1)
     bar_colors = ['#85C1E9' if r == 0 else '#AED6F1' for r in rounds]
     bars = ax1.bar(rounds, batch_times, color=bar_colors, edgecolor='white',
                    alpha=0.6, label='Per-round labeling time', zorder=2)
 
-    # Line: cumulative AL labeling time
+    # Line: cumulative AL labeling time (ax1)
     ax1.plot(rounds, cum_times, 'o-', color='#2C3E50', linewidth=2.5,
              markersize=7, label=f'AL cumulative ({strategy})', zorder=3)
 
-    # Supervised baseline
+    # Supervised baseline (ax1)
     ax1.axhline(y=supervised_time, color='#E74C3C', linestyle='--', linewidth=2,
-                label=f'Supervised baseline ({total_pool_size}q)', zorder=3)
+                label=f'Supervised baseline time ({total_pool_size}q)', zorder=3)
 
     # Annotate bars with only time (decluttered)
     for bar, t in zip(bars, batch_times):
@@ -475,21 +476,40 @@ def plot_labeling_efficiency(labeling_times, total_pool_size, strategy, output_d
              f'Supervised Baseline: {supervised_time:.0f}s',
              ha='left', va='bottom', fontsize=10, color='#E74C3C', fontweight='bold')
 
-    ax1.set_xlabel('Active Learning Round', fontsize=11)
     ax1.set_ylabel('Labeling Time (seconds)', fontsize=11)
-    ax1.set_title(f'Labeling Efficiency: Active Learning vs Supervised', fontsize=14, fontweight='bold')
+    ax1.set_title(f'Labeling Efficiency: Labeling Time Breakdown', fontsize=13, fontweight='bold')
     ax1.legend(loc='upper left', fontsize=10, framealpha=0.9, edgecolor='#BDC3C7')
     ax1.grid(True, alpha=0.3, axis='y')
-    ax1.set_xticks(rounds)
-    ax1.set_xticklabels([f'Init' if r == 0 else f'R{r}' for r in rounds])
 
-    # Add secondary x-axis showing cumulative queries
+    # Add secondary x-axis to ax1 (Top) showing cumulative queries
     ax2 = ax1.twiny()
     ax2.set_xlim(ax1.get_xlim())
     ax2.set_xticks(rounds)
     ax2.set_xticklabels([f'{int(cq)}' for cq in cum_queries], fontsize=8)
     ax2.set_xlabel('Cumulative Queries Labeled', fontsize=9, color='gray')
     ax2.tick_params(axis='x', colors='gray')
+
+    # Bottom Subplot for Q-Error (ax3)
+    if median_errors:
+        # median_errors is logged per round (length R), rounds includes init (length R+1)
+        plot_rounds = rounds[-len(median_errors):]
+        
+        ax3.plot(plot_rounds, median_errors, 's-', color='#8E44AD', linewidth=3,
+                 markersize=8, label='AL Median Q-Error', zorder=4)
+                 
+        # Target baseline based on the active learning run
+        target_qerror = median_errors[-1]
+        ax3.axhline(y=target_qerror, color='#9B59B6', linestyle='--', linewidth=2,
+                    label=f'Supervised Target Q-Error ({target_qerror:.1f})', zorder=4)
+
+        ax3.set_ylabel('Median Q-Error', fontsize=11, color='#8E44AD', fontweight='bold')
+        ax3.set_title(f'Labeling Efficiency: Q-Error Convergence', fontsize=13, fontweight='bold')
+        ax3.legend(loc='upper right', fontsize=10, framealpha=0.9, edgecolor='#BDC3C7')
+        
+    ax3.set_xlabel('Active Learning Round', fontsize=11)
+    ax3.set_xticks(rounds)
+    ax3.set_xticklabels([f'Init' if r == 0 else f'R{r}' for r in rounds])
+    ax3.grid(True, alpha=0.3, axis='both')
 
     fig.tight_layout()
     _save(fig, output_dir, "analysis_labeling_efficiency.png")
@@ -569,8 +589,86 @@ def generate_all_graphs(
     plot_pipeline_summary(labeled_sizes, median_errors, all_epoch_losses,
                           labeling_stats, queries, strategy, graphs_dir)
     if labeling_times and total_pool_size:
-        plot_labeling_efficiency(labeling_times, total_pool_size, strategy, graphs_dir)
+        plot_labeling_efficiency(labeling_times, median_errors, total_pool_size, strategy, graphs_dir)
 
     # Count generated files
     n_files = len([f for f in os.listdir(graphs_dir) if f.endswith('.png')])
     print(f"  Generated {n_files} graphs in {graphs_dir}")
+
+
+def plot_pg_vs_mscn_comparison(pg_estimates, mscn_estimates, test_labels, output_dir):
+    """
+    Plots the final CDF and Scatter comparisons between PostgreSQL native estimator and the learned MSCN model.
+    """
+    print("\n  Generating final PG vs MSCN comparative plots...")
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import os
+
+    # Filter out zeros or negatives for log scale safety
+    valid_idx = [i for i in range(len(test_labels)) if test_labels[i] > 0 and pg_estimates[i] > 0 and mscn_estimates[i] > 0]
+    
+    pg_est = np.array([pg_estimates[i] for i in valid_idx])
+    mscn_est = np.array([mscn_estimates[i] for i in valid_idx])
+    labels = np.array([test_labels[i] for i in valid_idx])
+
+    if len(labels) == 0:
+        print("  Warning: No valid labels found to plot comparison. Skipping.")
+        return
+
+    # Compute Q-Errors locally for plotting
+    pg_qerrors = np.maximum(pg_est / labels, labels / pg_est)
+    mscn_qerrors = np.maximum(mscn_est / labels, labels / mscn_est)
+
+    # 1. Plot CDF
+    fig, ax = plt.subplots(figsize=(8, 6))
+    pg_qerrors_sorted = np.sort(pg_qerrors)
+    mscn_qerrors_sorted = np.sort(mscn_qerrors)
+    cdf = np.arange(1, len(pg_qerrors) + 1) / len(pg_qerrors)
+    
+    ax.plot(pg_qerrors_sorted, cdf, linewidth=2.5, color='#e74c3c', label='PostgreSQL Estimates')
+    ax.plot(mscn_qerrors_sorted, cdf, linewidth=2.5, color='#3498db', label='Final MSCN Model')
+    
+    ax.set_xscale('log')
+    ax.set_xlabel('Q-Error (log scale)')
+    ax.set_ylabel('CDF')
+    ax.set_title('Cardinality Estimation Accuracy: PostgreSQL vs MSCN')
+    ax.grid(True, alpha=0.3, which='both')
+    ax.legend()
+    
+    out_file = os.path.join(output_dir, 'compare_pg_vs_mscn_cdf.png')
+    fig.savefig(out_file, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+    # 2. Plot Scatter
+    fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    max_val_plot = max(max(labels), max(pg_est), max(mscn_est)) * 2
+    min_val_plot = max(1, min(min(labels), min(pg_est), min(mscn_est)) / 2)
+    
+    # PG Scatter
+    ax1.scatter(labels, pg_est, alpha=0.5, color='#e74c3c')
+    ax1.plot([min_val_plot, max_val_plot], [min_val_plot, max_val_plot], 'k--', alpha=0.5)
+    ax1.set_xscale('log')
+    ax1.set_yscale('log')
+    ax1.set_xlim(min_val_plot, max_val_plot)
+    ax1.set_ylim(min_val_plot, max_val_plot)
+    ax1.set_xlabel('True Cardinality')
+    ax1.set_ylabel('Predicted Cardinality (PostgreSQL)')
+    ax1.set_title('PostgreSQL Optimizer')
+    
+    # MSCN Scatter
+    ax2.scatter(labels, mscn_est, alpha=0.5, color='#3498db')
+    ax2.plot([min_val_plot, max_val_plot], [min_val_plot, max_val_plot], 'k--', alpha=0.5)
+    ax2.set_xscale('log')
+    ax2.set_yscale('log')
+    ax2.set_xlim(min_val_plot, max_val_plot)
+    ax2.set_ylim(min_val_plot, max_val_plot)
+    ax2.set_xlabel('True Cardinality')
+    ax2.set_ylabel('Predicted Cardinality (MSCN)')
+    ax2.set_title('Final Learned MSCN Model')
+    
+    out_file2 = os.path.join(output_dir, 'compare_pg_vs_mscn_scatter.png')
+    fig2.savefig(out_file2, dpi=150, bbox_inches='tight')
+    plt.close(fig2)
+    
+    print(f"  Saved PG comparison plots to {output_dir}")

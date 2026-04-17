@@ -38,14 +38,14 @@ from mscn.util import (
 
 from generation.format_converter import parse_sql_to_mscn, query_dict_to_csv_line
 from config.db_config import get_connection
-from labeling.db_labeler import label_queries, reconstruct_sql
+from labeling.db_labeler import label_queries, reconstruct_sql, get_pg_estimates
 from labeling.bitmap_utils import (
     get_primary_keys,
     create_materialized_samples,
     generate_bitmaps_for_queries,
 )
 from generation.query_generator import generate_all_queries, generate_synthetic_queries, validate_sql, SchemaValidator
-from evaluation.pipeline_graphs import generate_all_graphs
+from evaluation.pipeline_graphs import generate_all_graphs, plot_pg_vs_mscn_comparison
 
 import matplotlib
 matplotlib.use('Agg')
@@ -56,6 +56,17 @@ from datetime import datetime
 # ── Global ──────────────────────────────────────────────────────────────────
 DEVICE = torch.device("cpu")
 
+
+import pickle
+
+def save_bitmaps(bitmaps, filepath):
+    """Save constructed bitmaps using pickle."""
+    try:
+        with open(filepath, 'wb') as f:
+            pickle.dump(bitmaps, f)
+        print(f"  [bitmaps] Saved to {filepath}")
+    except Exception as e:
+        print(f"  [error] Failed to save bitmaps to {filepath}: {e}")
 
 def set_seed(seed):
     """Set random seed for reproducibility."""
@@ -375,7 +386,6 @@ def run_pipeline(args):
         set_seed(args.seed)
         print(f"Random seed: {args.seed}")
 
-    # ── Setup output directory ──────────────────────────────────────────
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     results_dir = os.path.join(args.out, timestamp)
     os.makedirs(results_dir, exist_ok=True)
@@ -515,6 +525,9 @@ def run_pipeline(args):
     val_bitmaps = generate_bitmaps_for_queries(
         cursor, val_queries, materialized_samples, table_primary_keys, args.num_materialized_samples
     )
+    
+    val_bitmaps_path = os.path.join(results_dir, "val_bitmaps.bitmap")
+    save_bitmaps(val_bitmaps, val_bitmaps_path)
 
     # Encode validation set
     val_samples, val_preds, val_joins_enc = [], [], []
@@ -540,8 +553,8 @@ def run_pipeline(args):
     print(f"\n=== STEP 6: Active Learning Loop ({args.strategy}) ===")
     print(f"  Rounds: {args.rounds}, Acquire: {args.acquire}, Epochs: {args.epochs}")
 
-    # Initial labeled set
-    n_initial = min(args.acquire, len(pool_indices))
+    # Initial labeled set (20% of total queries)
+    n_initial = min(int(args.total_queries * 0.20), len(pool_indices))
     labeled_pool_idx = list(pool_indices[:n_initial])
     unlabeled_pool_idx = list(pool_indices[n_initial:])
 
@@ -558,6 +571,9 @@ def run_pipeline(args):
     initial_bitmaps = generate_bitmaps_for_queries(
         cursor, initial_queries, materialized_samples, table_primary_keys, args.num_materialized_samples
     )
+    
+    init_bitmaps_path = os.path.join(results_dir, "initial_bitmaps.bitmap")
+    save_bitmaps(initial_bitmaps, init_bitmaps_path)
 
     # Store bitmaps for all labeled queries
     query_bitmaps = {}  # idx -> bitmap
@@ -768,6 +784,9 @@ def run_pipeline(args):
         acquired_bitmaps = generate_bitmaps_for_queries(
             cursor, acquired_queries, materialized_samples, table_primary_keys, args.num_materialized_samples
         )
+        
+        acquired_bitmaps_path = os.path.join(results_dir, f"acquired_bitmaps_R{r+1}.bitmap")
+        save_bitmaps(acquired_bitmaps, acquired_bitmaps_path)
 
         for i, pool_i in enumerate(new_indices):
             query_bitmaps[pool_i] = acquired_bitmaps[i]
@@ -840,10 +859,17 @@ def run_pipeline(args):
         total_pool_size=n_pool,
     )
 
+    print(f"\n=== STEP 8: PostgreSQL Benchmark Comparison ===")
+    pg_estimates = get_pg_estimates(cursor, val_queries)
+    
+    # Generate comparative plots directly into the graphs directory
+    graphs_dir = os.path.join(results_dir, "graphs")
+    plot_pg_vs_mscn_comparison(pg_estimates, final_preds_unnorm, final_labels_unnorm, graphs_dir)
+
     # Cleanup
     cursor.close()
     conn.close()
-    print("\n=== Pipeline Complete ===")
+    print("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
     print(f"  Final Median Q-error: {median_errors[-1]:.4f}")
     print(f"  Total labeled queries: {labeled_sizes[-1]}")
     print(f"  Results saved to: {results_dir}")
@@ -878,8 +904,8 @@ def main():
     db_group.add_argument("--db-name", type=str, default="imdb")
     db_group.add_argument("--db-user", type=str, default="postgres")
     db_group.add_argument("--db-password", type=str, default="1111")
-    db_group.add_argument("--db-timeout", type=int, default=6000,
-                           help="Per-query timeout in ms (default: 6000)")
+    db_group.add_argument("--db-timeout", type=int, default=60000,
+                           help="Per-query timeout in ms (default: 60000)")
 
     # Model & Training
     train_group = parser.add_argument_group("Model & Training")

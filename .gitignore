@@ -45,3 +45,4 @@ TryingModels/schema/imdb_tsvs/
 /imdb-datasets
 /TryingModels/app_logs
 /temp
+/pipeline_results
