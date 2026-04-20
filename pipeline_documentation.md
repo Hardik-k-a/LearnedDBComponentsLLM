@@ -1,89 +1,101 @@
 # Learned Cardinalities Active Learning Pipeline
-**Comprehensive Documentation**
+**Comprehensive Technical Documentation**
 
-The `training.pipeline` application serves as the core orchestration engine for evaluating Learned Cardinality Estimators (specifically MSCN) under an Active Learning framework. This pipeline completely automates dummy data generation, ground-truth label aggregation from PostgreSQL, feature encoding, neural network training, active query acquisition, and comprehensive graph-based statistical evaluation.
+The `training.pipeline` application serves as the core orchestration engine for evaluating Learned Cardinality Estimators (specifically the Multi-Set Convolutional Network, or MSCN) under an Active Learning framework. This pipeline completely automates synthetic data generation, ground-truth label aggregation from PostgreSQL, feature tensor encoding, neural network training loops, active query acquisition, and comprehensive graph-based statistical evaluation.
 
 ---
 
 ## 1. High-Level Architecture & Workflow
-The pipeline execution is divided into **7 sequential steps**.
 
-### Step 1: Database Connection
-* **Module**: `config.db_config`
-* The pipeline connects to a live PostgreSQL instance (default: `imdb` schema). Active transactions are instantiated to perform rapid operations (like `COUNT(*)`).
+The pipeline execution is divided into **8 sequentially strict steps**, architected to mirror an automated ML infrastructure from bare strings to analytical graphs.
 
-### Step 2: Materialized Samples Calculation
-* **Module**: `labeling.bitmap_utils`
-* To give the learned model a statistical summary of the underlying base tables, the pipeline utilizes a "vectorized bitmap" approach. Primary keys and foreign keys are dynamically read. For each table, a fast sequential subset (e.g., 1000 records) is pre-sampled into memory.
+### Step 1: Database Connection & State Initialization
+*   **Module**: `config.db_config`
+*   The pipeline establishes a persistent connection to a live PostgreSQL instance (default schema: `imdb`). Active transactions are instantiated to perform rapid operations (like `COUNT(*)`). Global seeds and Torch devices are fixed here.
 
-### Step 3: Query Generation (Unlabeled Pool)
-* **Module**: `generation.query_generator`, `generation.format_converter`
-* To train the AI, thousands of syntactically valid relational queries must be generated.
-    * **Synthetic Mode (`--synthetic`)**: Fast, deterministic structural generation that recursively joins basic tables and guarantees valid join paths based on a hardcoded schema constraint.
-    * **LLM Mode (`--model-name ollama`)**: Generates rich, highly varied queries via prompting an external language model wrapper (e.g. LLAMA/Ollama) and parses them back out using strict `SchemaValidator` constraints.
+### Step 2: Materialized Bitmap Calculation
+*   **Module**: `labeling.bitmap_utils`
+*   **The Problem:** Deep Learning models struggle with naked strings like `"runtime_minutes > 150"`. 
+*   **The Solution:** The pipeline pre-samples a random static subset (e.g., 1000 rows) of each baseline table connected by primary keys.
+*   When evaluating a generated query, the script queries PG dynamically targeting these specific PKs: `SELECT pk FROM table WHERE {predicates} AND pk = ANY(%s)`. 
+*   It then builds a boolean mask vector (the "Bitmap"). If row `i` survived the SQL filters natively, the bitmap index $i=1.0$, otherwise $0.0$. This allows the model to "see" mathematically exactly how permissive a filter expression is.
 
-### Step 4: Initial Split & Labeling 
-* **Module**: `labeling.db_labeler`
-* Queries are partitioned into an **Unlabeled Pool** and a **Validation Set**. 
-* The validation subset immediately has true cardinalities mapped by executing PostgreSQL `SELECT COUNT(*) FROM ...` loops.
-* **Per-query Timeouts**: A timeout (e.g., `5000ms`) is enforced at the database level to prevent massive cross-joins from halting the pipeline globally.
+### Step 3: Neural Query Generation (Unlabeled Pool)
+*   **Module**: `generation.query_generator`, `generation.format_converter`
+*   To train the AI, thousands of syntactically valid relational queries must be generated.
+    *   **Synthetic Mode (`--synthetic`)**: Fast, deterministic structural generation that recursively joins basic tables, randomly selects column filters, and guarantees valid foreign key paths based on a hardcoded schema constraint mapping.
+    *   **LLM Mode (`--model-name ollama`)**: Generates rich, highly creatively varied queries via prompting an external local Language Model (e.g., Llama 3) via REST. Pushes the physical schema into the context-window and injects dynamically rotating `diversity_hints`.
+*   All string SQLs are parsed out into Python dicts tracking `tables`, `joins`, and `predicates`.
 
-### Step 5: Encoding & Bitmap Masking
-* **Module**: `utils.encode`
-* SQL strings cannot enter neural models directly.
-* Vocabulary lists are constructed tracking every unique structural predicate (Tables, Joins, Operators). 
-* **Feature Maps**: Categorical data is translated to `one-hot` tensors; exact numeric conditions (e.g., `< 2005`) are aggressively normalized using `build_column_min_max()`.
+### Step 4: Initial Split & Validation Baseline
+*   **Module**: `labeling.db_labeler`
+*   Queries are cleanly partitioned: $90\%$ **Unlabeled Pool** and $10\%$ **Validation Set**. 
+*   The validation subset undergoes physical labeling immediately. PostgreSQL executes `SELECT COUNT(*) FROM ...` loops.
+*   **Timeouts & Protections**: A timeout (e.g., `5000ms`, `60000ms`) is enforced natively inside PostgreSQL (`SET statement_timeout`) to dynamically abort massive cartesian cross-joins without halting the Python pipeline globally.
 
-### Step 6: Active Learning Loop
-This is the iterative core of the system. Rather than receiving $N$ labeled queries all at once (supervised baseline), the active learning framework only starts with a tiny fraction (e.g. 20% initialization) and *intelligently asks* for more query labels dynamically.
-1. **Initialize**: A tiny base subset of the Unlabeled Pool is chosen randomly and passed to the Database Labeler to bootstrap basic model stability.
-2. **Train Epochs**: The MSCN network evaluates backpropagation mapping string/bitmap tensors against Cardinality (using normalized log scales).
-3. **Acquisition (If rounds continue)**: The model attempts to figure out what it *doesn't know*. 
-    * **Random**: Default stochastic sampling.
-    * **MC-Dropout**: The model infers across the unlabeled pool multiple times keeping the training dropout enabled. Queries exhibiting massive variance (`var(preds)`) are considered uncertain and fetched for labeling.
-    * **Ensembles**: Fits $K$ parallel models iteratively; queries where the $K$ models heavily disagree are pulled for labeling.
-4. **Append & Repeat**: Acquired queries get labeled, encoded, serialized to disk as `.bitmap`, and dumped over to the main `train_dataset`. Next round begins.
+### Step 5: Encoding, Normalization, & Masking
+*   **Module**: `mscn.util`
+*   Vocabulary lists are programmatically constructed tracking every unique structural permutation.
+*   **Feature Tensors**: Categorical data is translated to `one-hot` tensors.
+*   **Log-scaling**: True integer cardinalities vary on exponential curves ($0 \rightarrow 1,000,000,000$). The labels $y$ are transformed to $\log_{e}(y + 1)$, and further crushed via Min-Max boundaries to scale from $0.0 \rightarrow 1.0$ so the `MSELoss` gradients do not violently explode.
 
-### Step 7: Final Metric & Evaluation Logging
-* **Module**: `evaluation.pipeline_graphs`
-* The pipeline drops extensive arrays: Validation Q-errors, Training Loss histories, Epoch trajectories, batch times. Every iteration creates visually aesthetic PDF/PNG outputs documenting:
-    * Labeling Efficiency Curves vs Supervised baselines
-    * Q-Error Cumulative Distributive Function (CDF) sweeps
-    * Prediction v. Ground Truth log-scatter maps
-    * Data Generation distributions (Keys, tables, aggregations)
+### Step 6: The Active Learning Loop
+This is the iterative focal point of the system. Rather than receiving $N$ labeled queries all at once (supervised baseline), the active learning framework begins with only a tiny statistical fraction and *computationally reasons* about which queries it should ask the labeler (Database) to solve next.
+
+1.  **Bootstrapping Initialize**: The system takes exactly $20\%$ of `--total-queries` randomly and uses them to stabilize the initial model weights natively.
+2.  **Epoch Alignment**: The MSCN architecture evaluates backpropagation mapping string/bitmap tensors against Cardinalities (using flattened `nn.Linear` outputs passed via sigmoids).
+3.  **Active Acquisition Evaluation**: The model evaluates the Unlabeled sequence to figure out what it *doesn't mathematically comprehend*.
+    *   **Random**: Default baseline stochastic sampling.
+    *   **MC-Dropout (Monte Carlo Variance)**: A Bayesian Uncertainty computation. Normally, Dropout randomly destroys weights only during training. In MC-Dropout inference, the module passes the Unlabeled Pool through the network $10$ times iteratively with Dropout active. Queries exhibiting massive target variations (high $\sigma^2$) are mathematically determined to be inherently 'Uncertain' to the model state and acquired for specific labeling.
+    *   **Ensembles**: Creates a battery of $K$ separate neural models. The lowest variance agreements between models dictate query difficulty edge-cases.
+4.  **Append & Restructure**: Acquired queries get labeled natively, bitmapped, and merged dynamically into the main PyTorch `DataLoader`.
+
+### Step 7: Final Graphing & Distributive Logging
+*   **Module**: `evaluation.pipeline_graphs`
+*   The pipeline evaluates final Q-Errors using standard metrics $Q= \max( \frac{\text{Est}}{\text{True}}, \frac{\text{True}}{\text{Est}} )$.
+*   Every active iteration creates $15+$ visually aesthetic PDF/PNG mathematical outputs targeting:
+    *   **Labeling Efficiency Maps**: Automatically traces Supervised baselines against the active-learning loss curve mapping exact temporal bounds ($10\%$ pool yielding $95\%$ performance).
+    *   **Q-Error CDF Sweeps**: Cumulative Distributive Function graphs displaying model accuracy dropoffs logarithmicly across test arrays.
+    *   **Data Layout Distributions**.
+
+### Step 8: Final Postgres Estimator Comparison
+*   The pipeline conducts a unified sequence of standard `EXPLAIN` calls to pull native PostgreSQL statistical estimates across the evaluated validation subset, building a perfect baseline model comparison logic between physical engine implementations and AI inferences. Outputs mapped as `compare_pg_vs_mscn_cdf.png`.
 
 ---
 
-## 2. Artifact Output Persistence
-A single run creates a globally stamped output directory (`pipeline_results/YYYY-MM-DD_HH-MM-SS/`). Inside, it securely archives:
+## 2. Artifact Output Persistence & Telemetry
 
-* `/graphs/` – Contains all 15 detailed MATPLOTLIB charts.
-* `model.pt` – The final PyTorch model state dict from the concluding round.
-* `learning_data.csv` – Serialized trace arrays of model median validation capabilities over time.
-* `labeling_times.csv` – Exact timestamp deltas per learning iteration measuring cost/efficiency tradeoffs.
-* `*_bitmaps.bitmap` – Intermediate serialized raw dictionary payloads mapping exact material schemas evaluated.
+A single run creates a globally stamped telemetry directory (`pipeline_results/YYYY-MM-DD_HH-MM-SS/`). Inside, it severely archives:
+
+*   `/graphs/` – Contains all compiled MATPLOTLIB analytics charts natively formatted.
+*   `model.pt` – The final PyTorch model state dict from the concluding round. Useful for hot-reloading estimator endpoints.
+*   `pipeline_config.txt` – Exhaustive trace dict configuration tracking exact seeds and dimensions.
+*   `learning_data.csv` – Serialized trace arrays of model median validation capabilities over time.
+*   `labeling_times.csv` – Exact timestamp deltas per learning iteration measuring cost/efficiency tradeoffs.
+*   `val_bitmaps.bitmap` & `initial_bitmaps.bitmap` – Intermediate serialized raw dictionary payloads mapping exact material schemas evaluated.
 
 ---
 
 ## 3. Invocation Configuration & CLI Parameters
 
-You can trigger the pipeline directly via `python -m training.pipeline [arguments]`. 
+You can trigger the pipeline directly via terminal execution. All parameters are optionally defined in `.env` or overridden manually.
 
-### Key Flags:
-* **--total-queries `<int>`**: Dictates the volume spanning across the un-labeled pool and evaluation validation set. Standard run uses `2500`.
-* **--synthetic**: Boolean flag explicitly disabling LLM generation paths in favor of deterministic native synthetics mapping to `IMDB`. Default is False (meaning it attempts LLM calls).
-* **--strategy `<string>`**: Determines Active Learning mechanism (`random`, `mc_dropout`, `ensemble`).
-* **--acquire `<int>`**: The amount of labels actively pulled iteratively at the end of each Round.
-* **--db-timeout `<int>`**: Enforced limit at the PostgreSQL level guaranteeing single complex SQL queries don't hang standard workflow completion.
-* **--epochs `<int>`**: Local training convergence depth for `SetConv` loops per round.
+```bash
+python -m training.pipeline --synthetic --total-queries 2500 --rounds 5 --epochs 10 --strategy mc_dropout --acquire 200
+```
 
-## 4. Model Context (MSCN)
-The pipeline specifically builds Multi-Set Convolutional Networks (MSCN) defined over in `mscn.model`. The data layer requires strict vector limits:
-1. `max_joins` (dynamic array padding matching the biggest sequence)
-2. `max_predicates` 
-3. `max_tables`
+### Key CLI Flags:
+*   **`--total-queries <int>`**: Dictates the mathematical ceiling mapping the un-labeled pool and evaluation validation set. Standard run uses `2500`.
+*   **`--synthetic`**: Boolean flag explicitly disabling LLM generation paths in favor of lightning-fast deterministic native algorithmic synthetics matching predefined schema paths. Default is False.
+*   **`--strategy <string>`**: Evaluates Active Learning uncertainty matrices (`random`, `mc_dropout`, `ensemble`).
+*   **`--acquire <int>`**: The integer limit bounds actively mapping labeling allocations incrementally at the end of each Round.
+*   **`--epochs <int>`**: Local training convergence layers (Deep Learning loops) executed over specific labeled tensors per active learning round (typically `10` or `20`).
+*   **`--db-timeout <int>`**: Natively mapped `ms` enforced limit at PostgreSQL driver bindings.
 
-All arrays are concatenated via standard DataLoader protocols locally (`torch.FloatTensor`). The output is fundamentally `unnormalized_label = exp(normalized_prediction * max - min + min)` to account for logarithmic volume differentials mapping database structures ranging from subsets of $10$ to queries covering sets of $25,000,000$.
+---
 
-## 5. Extensions
-To introduce novel active learning heuristics (ex. Core-Set, Fisher Information), a new evaluation strategy must be appended under the **Active Learning Loop (Acquisition)** in `training.pipeline` (`line 647`). New mechanisms must extract the array tensors defined on `unlabeled_pool_idx`, evaluate scoring heuristics, and push back indexes mapping to the required `--acquire` length constraints.
+## 4. API Extensions (Scaling the Platform)
+
+To introduce purely novel active learning heuristics (ex. Core-Set Covering, Fisher Information Matrix calculation), a new mathematical strategy function must be dynamically attached underneath the **Active Learning Loop (Acquisition)** in `training/pipeline.py` (near line $680$). 
+
+New algorithms must explicitly interact with PyTorch tensors evaluated over `unlabeled_pool_idx`, evaluate scoring heuristics (like K-Center clustered distances or Log-Determinants), and securely return integer indexing structures matching the length parameter constraints dictated by `--acquire`.
