@@ -5,14 +5,9 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {4.1}{\ignorespaces Default hyperparameters for the complete pipeline.}}{18}{table.caption.7}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {5.1}{\ignorespaces Synthetic generator table definitions with column ranges.}}{30}{table.caption.10}%
-\contentsline {table}{\numberline {5.2}{\ignorespaces Comparison of LLM-based and synthetic query generation approaches.}}{31}{table.caption.11}%
+\contentsline {table}{\numberline {5.1}{\ignorespaces Comparison of LLM-based and synthetic query generation approaches.}}{18}{table.caption.8}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {6.1}{\ignorespaces Q-error statistics across active learning rounds for different acquisition strategies (lower is better).}}{45}{table.caption.19}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {7.1}{\ignorespaces Experimental configuration parameters.}}{46}{table.caption.20}%
+\contentsline {table}{\numberline {7.1}{\ignorespaces Experimental configuration parameters.}}{28}{table.caption.11}%
 \addvspace {10\p@ }
-\babel@toc {ngerman}{}\relax 
-\babel@toc {english}{}\relax 

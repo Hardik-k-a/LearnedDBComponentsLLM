@@ -3,61 +3,23 @@
 \label{chap:approach}
 \pagestyle{plain}
 
-This chapter presents the comprehensive approach for creating and benchmarking learned database components using large language models (LLMs) and active learning. We introduce the overall system architecture and describe each pipeline stage at a high level, with the detailed treatment of the query generation and training approaches deferred to subsequent chapters. Experimental results including workload analysis, learning curves, and model evaluation are presented in Chapter~\ref{chap:experiments}.
-
-\section{Design Principles}
-
-The design of our framework is guided by several key principles that ensure practical applicability, scalability, and extensibility:
-
-\subsection{Schema Agnosticism}
-
-The framework is designed to work with arbitrary relational database schemas without manual configuration. Given a schema definition (table names, column names, data types, and foreign key relationships), the system automatically generates appropriate queries, validates them against the schema, and produces correctly structured training data. This is achieved through:
-
-\begin{itemize}
-    \item Dynamic schema parsing that extracts table metadata and relationships
-    \item Runtime column statistics extraction (min/max values) for realistic predicate generation
-    \item Automatic primary key detection for materialized sample creation
-    \item Schema-aware query validation that rejects references to non-existent tables or columns
-\end{itemize}
-
-\subsection{Modularity and Extensibility}
-
-The system is organized into modular components that can be independently modified or replaced:
-
-\begin{itemize}
-    \item \textbf{Query Generation Module}: Currently uses Ollama-based LLMs but can be extended to any LLM provider or template-based generator.
-    \item \textbf{Active Learning Module}: Supports pluggable acquisition functions (random, uncertainty, MC dropout), with a well-defined interface for adding new strategies.
-    \item \textbf{Model Architecture}: While MSCN is the default learned estimator, the training pipeline can accommodate other architectures.
-    \item \textbf{Database Backend}: Although developed and tested with PostgreSQL and the IMDB dataset, the pipeline is compatible with any JDBC/ODBC-accessible database.
-\end{itemize}
-
-\subsection{Robustness and Fault Tolerance}
-
-Production-grade robustness is ensured through several mechanisms:
-
-\begin{itemize}
-    \item Timeout handling for long-running database queries with configurable thresholds
-    \item Automatic retry logic with exponential backoff for transient database errors
-    \item Graceful degradation: queries that fail after maximum retries are assigned a fallback cardinality of 1
-    \item Transaction management with proper commit/rollback semantics at every stage
-    \item Comprehensive logging of failures for post-hoc analysis
-\end{itemize}
-
-\subsection{Reproducibility}
-
-Scientific rigor requires reproducible experiments. The framework supports:
-
-\begin{itemize}
-    \item Configurable random seeds for deterministic behavior across all random operations (Python, NumPy, PyTorch)
-    \item Complete experiment configuration logging (all hyperparameters are saved to disk)
-    \item CSV-based results export for downstream analysis
-    \item Timestamped output directories to prevent overwriting previous experiments
-\end{itemize}
+This chapter presents the overall approach for creating and benchmarking learned database components using large language models and active learning. We introduce the system architecture at a conceptual level and describe the core ideas that motivate our pipeline design. The detailed algorithmic treatments of the query generation methodology and the training process with active learning are deferred to Chapters~\ref{chap:query_generation} and~\ref{chap:training_approach}, respectively. Experimental results including workload analysis, learning curves, and model evaluation are presented in Chapter~\ref{chap:experiments}.
 
 
-\section{System Architecture Overview}
+\section{Benefits of the Proposed Framework}
 
-The proposed system consists of an end-to-end pipeline that integrates six major stages: (1)~query generation, (2)~query validation and format conversion, (3)~database labeling, (4)~feature extraction and bitmap generation, (5)~active learning loop with model training, and (6)~evaluation and visualization. Figure~\ref{fig:system_overview} illustrates the high-level architecture of the complete system.
+The proposed framework offers several important benefits that distinguish it from prior work on learned cardinality estimation. First, the system is designed to be schema-agnostic: given a schema definition containing table names, column names, data types, and foreign key relationships, the system automatically generates appropriate queries, validates them against the schema, and produces correctly structured training data without any manual configuration. This means that the same pipeline can be applied to entirely different databases without modification, making it a general-purpose tool for training learned estimators.
+
+Second, the framework is built around modular and extensible components. The query generation module can work with any LLM provider or fall back to a deterministic synthetic generator. The active learning module supports pluggable acquisition functions, and the model architecture can be swapped without affecting the rest of the pipeline. This modularity enables researchers to isolate and evaluate individual contributions independently.
+
+Third, the system provides production-grade robustness through timeout handling for long-running database queries, automatic retry logic with exponential backoff for transient errors, and graceful degradation when queries fail after maximum retries. These mechanisms ensure that the pipeline can process thousands of queries without manual intervention, even when operating on complex schemas with expensive join queries.
+
+Finally, the framework supports full reproducibility through configurable random seeds, complete experiment configuration logging, CSV-based results export, and timestamped output directories. These features are essential for scientific rigor and enable meaningful comparisons across different experimental configurations.
+
+
+\section{System Architecture}
+
+The proposed system consists of an end-to-end pipeline that integrates six major stages: query generation, query validation and format conversion, database labeling, feature extraction and bitmap generation, active learning with model training, and evaluation with visualization. Figure~\ref{fig:system_overview} illustrates the high-level architecture.
 
 \begin{figure}[htbp]
 \centering
@@ -99,7 +61,7 @@ The proposed system consists of an end-to-end pipeline that integrates six major
     % Feedback loop
     \draw [arrow, dashed, red!60] (evaluation.south) -- ++(0,-0.6) -| (al.south) node[pos=0.25, below, font=\scriptsize, text=gray] {Feedback Loop};
 
-    % Stage labels - positioned clearly outside nodes
+    % Stage labels
     \node [above=0.3cm of llm, font=\footnotesize\bfseries, text=blue!70] {Stage 1: Generation};
     \node [left=0.6cm of format, font=\footnotesize\bfseries, text=orange!70, align=right] {Stage 2:\\Processing};
     \node [below=0.3cm of training, font=\footnotesize\bfseries, text=purple!70] {Stage 3: Learning};
@@ -111,258 +73,19 @@ The proposed system consists of an end-to-end pipeline that integrates six major
 \end{figure}
 
 
-\section{Pipeline Stages}
+\section{Pipeline Overview}
 
-This section provides a high-level description of each pipeline stage. Detailed algorithmic treatments of the query generation and training approaches are presented in Chapters~\ref{chap:query_generation} and~\ref{chap:training_approach}, respectively.
+The pipeline begins with query generation, where a large pool of unlabeled SQL queries is produced either by prompting a large language model with the database schema or by using a deterministic synthetic generator. Unlike traditional template-based generators that rely on predefined patterns, LLMs capture complex linguistic and structural patterns present in real-world workloads, producing queries with greater diversity in join topologies, predicate combinations, and selectivity profiles. The details of the prompt engineering strategy, diversity mechanisms, and the multi-layer validation pipeline that filters invalid LLM output are presented in Chapter~\ref{chap:query_generation}.
 
-\subsection{Stage 1: LLM-Based Query Generation}
+Once a pool of valid queries has been assembled, the pipeline proceeds to database labeling, where ground truth cardinalities are obtained by executing each query against the target database. This is the most computationally expensive stage of the pipeline, and it is precisely this cost that motivates the use of active learning. Rather than labeling the entire query pool, only a strategically chosen subset is executed, dramatically reducing the total computation required.
 
-The first stage generates a large pool of unlabeled SQL queries by leveraging large language models. Unlike traditional synthetic query generators that rely on predefined templates or random sampling from the schema, LLMs capture complex linguistic and structural patterns present in real-world query workloads. The generation process is parameterized by:
+Before queries can be fed to the neural network, they must be transformed into fixed-size tensor representations. The feature extraction stage encodes each query as three sets of vectors representing tables, predicates, and joins. A key element of this encoding is the bitmap feature, which captures the selectivity of each query's filter predicates on a pre-sampled subset of the underlying data. These bitmaps provide the model with data-aware signals that go beyond purely structural features, enabling it to learn correlations between query predicates and actual data distributions.
 
-\begin{itemize}
-    \item \textbf{Database Schema}: Complete DDL statements defining tables, columns, data types, and foreign key relationships fed as context to the LLM prompt.
-    \item \textbf{Column Statistics}: Optional min/max values for numeric columns, enabling the LLM to generate predicates with realistic value ranges.
-    \item \textbf{Diversity Hints}: Rotating textual hints that steer the LLM toward generating queries of varying complexity (single-table, 2-table joins, 3-table joins) and selectivity profiles.
-    \item \textbf{Batch Size}: Queries are generated in configurable batches (default: 20 per LLM call) to enable progress tracking and partial failure recovery.
-\end{itemize}
+The active learning loop forms the core optimization mechanism of the pipeline. It operates iteratively: an initial batch of queries is randomly selected and labeled to bootstrap the model, after which the model is trained and then used to score all remaining unlabeled queries according to an acquisition function. The highest-scoring queries, those where the model is most uncertain or where the greatest learning potential exists, are selected for labeling and added to the training set. This cycle repeats for a configurable number of rounds, progressively building a training set that is both compact and highly informative. The framework supports multiple acquisition strategies including random sampling, uncertainty sampling, and Monte Carlo dropout, each offering different trade-offs between computational cost and sample efficiency. The complete training methodology, MSCN architecture, and active learning strategies are detailed in Chapter~\ref{chap:training_approach}.
 
-The system communicates with the LLM through the Ollama API, supporting any locally hosted model (e.g., Llama~3.2). The temperature parameter controls generation randomness, with higher values producing more diverse but potentially less valid queries.
-
-\subsection{Stage 2: Query Validation and Format Conversion}
-
-Raw LLM output undergoes rigorous multi-layer validation before entering the pipeline. This is critical because LLMs, while powerful, can produce syntactically or semantically invalid SQL. The validation pipeline consists of four sequential layers:
-
-\begin{enumerate}
-    \item \textbf{Structural Validation}: Regex-based filtering rejects queries containing forbidden SQL constructs (OR, IN, LIKE, BETWEEN, subqueries, aggregations) that fall outside the supported query fragment.
-    \item \textbf{Syntax Parsing}: Each query is parsed to extract FROM, WHERE, and JOIN clauses, verifying correct SQL structure.
-    \item \textbf{Schema Validation}: All table names, column names, and aliases referenced in the query are verified against the provided schema definition.
-    \item \textbf{Format Conversion}: Valid queries are converted from raw SQL strings into the structured MSCN-compatible format, decomposing each query into its three constituent sets: tables, joins, and predicates.
-\end{enumerate}
-
-The MSCN format represents each query as a CSV line with four hash-separated fields:
-
-\begin{lstlisting}[language=python, caption=MSCN CSV Format Example, basicstyle=\small\ttfamily]
-tables#joins#predicates#cardinality
-title t,movie_info mi#t.id=mi.movie_id#t.kind_id,=,7,mi.info_type_id,>,16#12345
-\end{lstlisting}
-
-This compact representation enables efficient storage, parsing, and batch processing of large query workloads.
-
-\subsection{Stage 3: Database Labeling}
-
-Labeling assigns ground truth cardinalities to queries by executing them against the target database. This is the most computationally expensive stage, motivating the use of active learning to minimize the number of queries that need to be executed.
-
-The labeling pipeline implements robust error handling:
-
-\begin{itemize}
-    \item \textbf{SQL Reconstruction}: Each structured query is reconstructed into executable \texttt{SELECT COUNT(*)} SQL by reassembling tables, join conditions, and filter predicates.
-    \item \textbf{Timeout Management}: Per-query timeouts (default: 6000\,ms) prevent long-running queries from blocking the pipeline. Queries that exceed the timeout are retried up to a configurable maximum.
-    \item \textbf{Error Recovery}: Schema errors (e.g., missing columns due to schema evolution) and other database errors are caught and logged, with affected queries assigned a fallback cardinality.
-    \item \textbf{Minimum Cardinality}: All cardinalities are clamped to a minimum of 1 to satisfy MSCN's requirement for positive, log-normalizable values.
-\end{itemize}
-
-\subsection{Stage 4: Feature Extraction and Bitmap Generation}
-
-The MSCN architecture requires fixed-size feature vectors representing both the query structure and the underlying data distribution. Feature extraction produces three types of encodings:
-
-\begin{enumerate}
-    \item \textbf{Table Encoding}: Each table is represented as a one-hot vector concatenated with a bitmap vector. The bitmap captures the selectivity of the query's predicates on a pre-sampled set of rows from that table.
-    \item \textbf{Predicate Encoding}: Each predicate is represented as the concatenation of a column one-hot vector, an operator one-hot vector, and a normalized predicate value.
-    \item \textbf{Join Encoding}: Each join condition is represented as a one-hot vector over the set of all observed join patterns.
-\end{enumerate}
-
-Bitmap generation is performed using materialized samples---a fixed set of randomly sampled primary key values drawn once at pipeline initialization. For each query, the system evaluates which sampled rows satisfy the query's predicates, producing a binary vector per table. This approach amortizes the sampling cost across all queries while providing an efficient approximation of the data distribution visible to each query.
-
-\subsection{Stage 5: Active Learning Loop}
-
-The active learning loop is the core optimization mechanism that reduces labeling cost. It operates iteratively:
-
-\begin{enumerate}
-    \item An initial batch of queries is randomly selected from the pool and labeled.
-    \item The MSCN model is trained on the current labeled set.
-    \item The model is evaluated on a held-out validation set.
-    \item An acquisition function scores all unlabeled queries based on their estimated informativeness.
-    \item The top-scoring queries are selected, labeled, and added to the training set.
-    \item Steps 2--5 repeat for a configured number of rounds.
-\end{enumerate}
-
-The framework supports three acquisition strategies:
-
-\begin{itemize}
-    \item \textbf{Random Sampling}: Uniformly random selection, serving as the baseline.
-    \item \textbf{Uncertainty Sampling}: Selects queries where the model's normalized prediction is closest to 0.5, indicating maximum uncertainty.
-    \item \textbf{MC Dropout}: Performs $T=25$ stochastic forward passes with dropout enabled, selecting queries with highest prediction variance as a Bayesian approximation of model uncertainty.
-\end{itemize}
-
-\subsection{Stage 6: Evaluation and Visualization}
-
-The final stage produces comprehensive evaluation metrics and visualizations:
-
-\begin{itemize}
-    \item \textbf{Q-Error Metrics}: Median, 90th percentile, and 95th percentile Q-error on the validation set, computed after each active learning round.
-    \item \textbf{Learning Curves}: Plots of validation Q-error versus the number of labeled training queries, demonstrating sample efficiency.
-    \item \textbf{Training Loss Curves}: Per-round and per-epoch training loss trajectories.
-    \item \textbf{Predicted vs.\ Actual Scatter}: Log-log scatter plot comparing model predictions to ground truth cardinalities.
-    \item \textbf{Q-Error CDF}: Cumulative distribution function of Q-errors with percentile annotations.
-    \item \textbf{Workload Analysis}: Distributions of tables, joins, and predicates per query, along with cardinality distributions and labeling success rates.
-\end{itemize}
-
-The evaluation module generates 15 diagnostic plots organized into three categories (data generation analysis, model training and testing, and analysis summary), providing a comprehensive dashboard for experiment analysis.
-
-
-\section{Dataset and Experimental Configuration}
-
-\subsection{The IMDB Dataset}
-
-All experiments in this thesis are conducted on the Internet Movie Database (IMDB), a widely used benchmark for cardinality estimation research. The IMDB dataset used in our experiments consists of four core tables:
-
-\begin{itemize}
-    \item \textbf{title\_basics}: Contains metadata for approximately 10 million titles, including title type, production year, runtime, and genre information.
-    \item \textbf{name\_basics}: Contains metadata for approximately 12 million people associated with titles, including name, birth year, and death year.
-    \item \textbf{title\_principals}: A junction table linking titles to the principal cast and crew, with approximately 56 million records.
-    \item \textbf{title\_ratings}: Contains user ratings and vote counts for approximately 1.3 million titles.
-\end{itemize}
-
-The schema defines foreign key relationships between tables through the \texttt{tconst} and \texttt{nconst} identifiers, enabling meaningful join queries. Figure~\ref{fig:imdb_schema} illustrates the schema relationships.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}[
-    table/.style={draw, rectangle, rounded corners=3pt, minimum width=4.8cm, text width=4.5cm, align=center, fill=blue!8, font=\normalsize},
-    node distance=4.5cm and 3.5cm
-]
-    % Layout: tb at top-center, tp below-left, nb at far right, tr below-right
-    % This prevents arrow crossing
-    \node [table] (tb) {
-        \textbf{title\_basics}\\[4pt]
-        {\small\texttt{tconst (PK)}}\\[2pt]
-        {\small\texttt{titleType}}\\[2pt]
-        {\small\texttt{primaryTitle}}\\[2pt]
-        {\small\texttt{startYear}}\\[2pt]
-        {\small\texttt{runtimeMinutes}}\\[2pt]
-        {\small\texttt{genres}}
-    };
-
-    \node [table, right=of tb] (nb) {
-        \textbf{name\_basics}\\[4pt]
-        {\small\texttt{nconst (PK)}}\\[2pt]
-        {\small\texttt{primaryName}}\\[2pt]
-        {\small\texttt{birthYear}}\\[2pt]
-        {\small\texttt{deathYear}}
-    };
-
-    \node [table, below=of tb] (tp) {
-        \textbf{title\_principals}\\[4pt]
-        {\small\texttt{tconst (FK)}}\\[2pt]
-        {\small\texttt{nconst (FK)}}\\[2pt]
-        {\small\texttt{category}}\\[2pt]
-        {\small\texttt{ordering}}
-    };
-
-    \node [table, right=of tp] (tr) {
-        \textbf{title\_ratings}\\[4pt]
-        {\small\texttt{tconst (FK)}}\\[2pt]
-        {\small\texttt{average\_rating}}\\[2pt]
-        {\small\texttt{num\_votes}}
-    };
-
-    % Foreign Keys - no crossing with this layout
-    \draw [->, thick, >=stealth, blue!60] (tp) -- (tb) node[midway, left, font=\small] {tconst};
-    \draw [->, thick, >=stealth, blue!60] (tp) -- (nb) node[midway, above, font=\small, sloped] {nconst};
-    \draw [->, thick, >=stealth, blue!60] (tr) -- (tb) node[midway, above, font=\small, sloped] {tconst};
-
-\end{tikzpicture}
-\caption{Entity-relationship diagram of the IMDB database schema used in experiments. Primary keys (PK) and foreign keys (FK) are annotated. The \texttt{title\_principals} table serves as a junction table connecting titles to people.}
-\label{fig:imdb_schema}
-\end{figure}
-
-
-\subsection{Default Hyperparameters}
-
-Table~\ref{tab:default_hyperparams} summarizes the default hyperparameters used across all experiments unless otherwise specified. These values were selected based on preliminary experiments and align with recommended settings from the MSCN literature.
-
-\begin{table}[htbp]
-\centering
-\caption{Default hyperparameters for the complete pipeline.}
-\label{tab:default_hyperparams}
-\begin{tabular}{|l|l|c|}
-\hline
-\textbf{Category} & \textbf{Parameter} & \textbf{Default Value} \\
-\hline
-\multirow{4}{*}{Query Generation} & Total queries & 5000 \\
- & LLM batch size & 20 \\
- & LLM model & Llama 3.2 \\
- & Temperature & 0.8 \\
-\hline
-\multirow{3}{*}{Database} & Query timeout & 6000 ms \\
- & Max retries & 2 \\
- & Materialized samples & 1000 \\
-\hline
-\multirow{5}{*}{Active Learning} & Strategy & random / uncertainty / mc\_dropout \\
- & Rounds & 5 \\
- & Acquisition batch size & 200 \\
- & MC Dropout passes ($T$) & 25 \\
- & Validation split & 10\% \\
-\hline
-\multirow{4}{*}{MSCN Training} & Hidden units & 256 \\
- & Learning rate & $10^{-4}$ \\
- & Epochs per round & 10 \\
- & Training batch size & 1024 \\
-\hline
-\end{tabular}
-\end{table}
-
-
-\section{Workflow Execution}
-
-The complete pipeline is orchestrated by a single entry point (\texttt{pipeline.py}) that accepts all configuration parameters via command-line arguments or environment variables. Algorithm~\ref{alg:pipeline_main} presents the high-level execution workflow.
-
-\begin{algorithm}[htbp]
-\caption{Complete Pipeline Execution Workflow}
-\label{alg:pipeline_main}
-\begin{algorithmic}[1]
-\Procedure{RunPipeline}{config}
-    \State \Comment{--- Stage 1: Setup ---}
-    \State conn $\gets$ ConnectToDatabase(config)
-    \State samples $\gets$ CreateMaterializedSamples(conn, config.num\_samples)
-    \State
-    \State \Comment{--- Stage 2: Query Generation ---}
-    \If{config.synthetic}
-        \State queries $\gets$ GenerateSyntheticQueries(config.total\_queries)
-    \Else
-        \State raw\_sqls $\gets$ GenerateViaLLM(config.schema, config.stats, config.total\_queries)
-        \State queries $\gets$ ValidateAndConvert(raw\_sqls)
-    \EndIf
-    \State
-    \State \Comment{--- Stage 3: Vocabulary Construction ---}
-    \State vocabularies $\gets$ BuildVocabularies(queries)
-    \State column\_stats $\gets$ BuildColumnMinMax(queries)
-    \State
-    \State \Comment{--- Stage 4: Data Splitting ---}
-    \State pool, validation $\gets$ SplitData(queries, val\_fraction=0.1)
-    \State LabelAndEncode(validation, conn, samples, vocabularies)
-    \State
-    \State \Comment{--- Stage 5: Active Learning ---}
-    \State labeled, unlabeled $\gets$ InitialSplit(pool, config.acquire)
-    \State LabelQueries(labeled, conn)
-    \State model $\gets$ InitializeMSCN(vocabularies, config.hid\_units)
-    \For{round $\gets$ 1 \textbf{to} config.rounds}
-        \State TrainModel(model, labeled, config.epochs)
-        \State metrics $\gets$ Evaluate(model, validation)
-        \State acquired $\gets$ AcquireQueries(model, unlabeled, config.strategy, config.acquire)
-        \State LabelQueries(acquired, conn)
-        \State labeled $\gets$ labeled $\cup$ acquired
-        \State unlabeled $\gets$ unlabeled $\setminus$ acquired
-    \EndFor
-    \State
-    \State \Comment{--- Stage 6: Results ---}
-    \State SaveResults(metrics, model, config)
-    \State GenerateVisualizationDashboard()
-\EndProcedure
-\end{algorithmic}
-\end{algorithm}
+The final stage produces comprehensive evaluation metrics and visualizations including Q-error distributions, learning curves, predicted-versus-actual scatter plots, and workload analysis dashboards. These outputs enable detailed assessment of both the generated workload quality and the trained model's estimation accuracy.
 
 
 \section{Summary}
 
-This chapter introduced the overarching approach for creating and benchmarking learned database components using LLMs and active learning. We motivated the problem of training data acquisition for learned cardinality estimation, articulated the design principles guiding our framework, and described the six-stage pipeline architecture. The following chapters present the detailed algorithmic treatments: Chapter~\ref{chap:query_generation} covers the LLM-based query generation approach, and Chapter~\ref{chap:training_approach} details the training methodology including feature extraction, active learning, and model architecture.
+This chapter introduced the overarching approach for creating and benchmarking learned database components using LLMs and active learning. We described the benefits of the proposed framework, presented the six-stage pipeline architecture, and outlined the flow of data from schema ingestion through query generation and validation to active learning and model evaluation. The following chapters present the detailed algorithmic treatments: Chapter~\ref{chap:query_generation} covers the LLM-based query generation approach, and Chapter~\ref{chap:training_approach} details the training methodology including feature extraction, active learning, and model architecture.

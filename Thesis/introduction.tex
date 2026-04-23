@@ -27,14 +27,4 @@ Our approach is motivated by prior observations that workload diversity and quer
 
 \section{Contributions}
 
-The main contributions of this thesis are as follows:
-
-\begin{itemize}
-    \item We propose a novel framework that leverages large language models to generate synthetic SQL queries and their corresponding training signals, reducing dependence on manually collected query workloads.
-    
-    \item We introduce an active learning-based training strategy for learned cardinality estimation, enabling efficient selection of informative queries and significantly reducing labeling costs.
-    
-    \item We design and implement a fully automated, schema-agnostic pipeline that integrates query generation, validation, feature extraction, active learning, and model training.
-    
-    \item We demonstrate how combining LLM-based data generation with active learning improves scalability, diversity, and effectiveness of training data for learned database components.
-\end{itemize}
+The main contributions of this thesis are fourfold. First, we propose a novel framework that leverages large language models to generate synthetic SQL queries and their corresponding training signals, reducing dependence on manually collected query workloads. Second, we introduce an active learning-based training strategy for learned cardinality estimation, enabling efficient selection of informative queries and significantly reducing labeling costs. Third, we design and implement a fully automated, schema-agnostic pipeline that integrates query generation, validation, feature extraction, active learning, and model training into a unified system. Fourth, we demonstrate through extensive experiments on the IMDB benchmark that combining LLM-based data generation with active learning improves scalability, diversity, and effectiveness of training data for learned database components.

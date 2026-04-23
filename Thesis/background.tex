@@ -68,13 +68,9 @@ In order to test the quality of the generated data, the PAARS framework uses the
 
 In the context of query generation, KL divergence can be applied to distributions over query features such as the number of joins, predicate types, and selectivity ranges. By comparing these distributions between synthetic and real workloads, it is possible to evaluate whether the generated data accurately reflects real-world patterns. This provides a quantitative basis for improving the quality of synthetic datasets.
 
-\section{System Perspective: Ollama and Practical Deployment}
+\section{Local Model Hosting for Reproducibility}
 
-In terms of system efficiency, the application of LLMs for data generation also requires careful consideration. In this work, Ollama is used to locally run LLMs. This allows for efficient query generation. Local running also provides several advantages, including efficiency, privacy, and ease of experimentation. 
-
-Another advantage of using local running for LLMs is the ability to control the models. This provides reproducibility of experiments. Additionally, this approach helps to ensure that the results are not affected by external APIs. Local running also provides the advantage of fine-tuning models based on specific requirements.
-
-The application of Ollama provides the advantage of generating queries. This process can be refined and validated. This setup provides the advantage of ensuring that the generated data meets the requirements for the training process.
+The practical deployment of LLMs for data generation requires careful consideration of reproducibility, privacy, and cost. In this work, we adopt a local hosting strategy using the Ollama framework, which enables running open-source language models entirely on the researcher's own hardware. This choice offers several important benefits for scientific experimentation. Local hosting eliminates dependency on external API services, ensuring that experiments are not affected by changes in third-party model versions, pricing, or availability. It also preserves data privacy, as database schemas and query workloads never leave the local environment. Furthermore, local inference provides consistent latency characteristics and enables full control over model parameters such as temperature and token limits, supporting reproducible experimental conditions.
 
 \section{Summary and Motivation}
 

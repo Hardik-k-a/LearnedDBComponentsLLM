@@ -3,232 +3,37 @@
 \label{chap:training_approach}
 \pagestyle{plain}
 
-This chapter presents the detailed training methodology for the learned cardinality estimator, encompassing database labeling, feature extraction, the Multi-Set Convolutional Network (MSCN) architecture, active learning strategies, and the evaluation framework. These components collectively form the learning pipeline that transforms generated queries into a trained model capable of accurate cardinality prediction.
-
-\section{Database Labeling Pipeline}
-
-\subsection{SQL Reconstruction}
-
-The labeling process begins by reconstructing executable SQL from the structured query representation. Each query's tables, joins, and predicates are assembled into a complete \texttt{SELECT COUNT(*)} statement.
-
-Algorithm~\ref{alg:sql_reconstruction} presents the SQL reconstruction procedure.
-
-\begin{algorithm}[htbp]
-\caption{SQL Reconstruction from Structured Query Components}
-\label{alg:sql_reconstruction}
-\begin{algorithmic}[1]
-\Procedure{ReconstructSQL}{tables, joins, predicates}
-    \State from\_clause $\gets$ JOIN(tables, ``, '')
-    \State conditions $\gets$ []
-    \For{each join in joins}
-        \If{join is not empty}
-            \State left, right $\gets$ SPLIT(join, ``='')
-            \State conditions.append(left + `` = '' + right)
-        \EndIf
-    \EndFor
-    \For{each (col, op, val) in predicates}
-        \If{IsNumeric(val)}
-            \State conditions.append(col + `` '' + op + `` '' + val)
-        \Else
-            \State conditions.append(col + `` '' + op + `` ''' + val + ``''')
-        \EndIf
-    \EndFor
-    \State sql $\gets$ ``SELECT COUNT(*) FROM '' + from\_clause
-    \If{$|$conditions$| > 0$}
-        \State sql $\gets$ sql + `` WHERE '' + JOIN(conditions, `` AND '')
-    \EndIf
-    \State \Return sql
-\EndProcedure
-\end{algorithmic}
-\end{algorithm}
-
-For example, a query with tables \texttt{[title t, movie\_info mi]}, joins \texttt{[t.id=mi.movie\_id]}, and predicates \texttt{[(t.kind\_id, =, 7)]} is reconstructed as:
-
-\begin{lstlisting}[language=SQL, basicstyle=\small\ttfamily, breaklines=true]
-SELECT COUNT(*) FROM title t, movie_info mi
-WHERE t.id = mi.movie_id AND t.kind_id = 7
-\end{lstlisting}
-
-\subsection{Robust Query Execution}
-
-Ground truth cardinalities are obtained by executing the reconstructed SQL against the PostgreSQL database. The execution engine implements several robustness features to handle the wide variety of query complexities encountered in generated workloads.
-
-Algorithm~\ref{alg:robust_labeling} presents the complete labeling procedure with error handling.
-
-\begin{algorithm}[htbp]
-\caption{Robust Query Labeling with Timeout and Error Recovery}
-\label{alg:robust_labeling}
-\begin{algorithmic}[1]
-\Procedure{LabelQueries}{cursor, queries, timeout\_ms, max\_retries}
-    \State labeled\_count $\gets$ 0
-    \For{each query $q$ in queries}
-        \If{$q$.cardinality is not None}
-            \State labeled\_count $\gets$ labeled\_count + 1
-            \State \textbf{continue} \Comment{Already labeled}
-        \EndIf
-        \State sql $\gets$ ReconstructSQL($q$.tables, $q$.joins, $q$.predicates)
-        \For{attempt $\gets$ 1 \textbf{to} max\_retries}
-            \State cursor.execute(``SET statement\_timeout = '' + timeout\_ms)
-            \State \textbf{try}:
-            \State \hspace{1em} cursor.execute(sql)
-            \State \hspace{1em} count $\gets$ max(cursor.fetchone()[0], 1)
-            \State \hspace{1em} cursor.execute(``SET statement\_timeout = 0'')
-            \State \hspace{1em} $q$.cardinality $\gets$ count
-            \State \hspace{1em} cursor.connection.commit()
-            \State \hspace{1em} labeled\_count $\gets$ labeled\_count + 1
-            \State \hspace{1em} \textbf{break}
-            \State \textbf{catch} QueryCanceled:
-            \State \hspace{1em} cursor.connection.rollback()
-            \State \hspace{1em} \textbf{if} attempt $<$ max\_retries \textbf{then} Sleep(1.0)
-            \State \textbf{catch} UndefinedTable:
-            \State \hspace{1em} cursor.connection.rollback()
-            \State \hspace{1em} \textbf{break} \Comment{Unrecoverable schema error}
-            \State \textbf{catch} Exception:
-            \State \hspace{1em} cursor.connection.rollback()
-        \EndFor
-        \If{$q$.cardinality is None}
-            \State $q$.cardinality $\gets$ 1 \Comment{Fallback default}
-        \EndIf
-    \EndFor
-    \State \Return labeled\_count
-\EndProcedure
-\end{algorithmic}
-\end{algorithm}
-
-Key design decisions in the labeling pipeline:
-
-\begin{enumerate}
-    \item \textbf{Minimum Cardinality Clamping}: All cardinalities are clamped to a minimum of 1. This is required because the MSCN loss function uses log-normalization, and $\log(0)$ is undefined.
-    \item \textbf{Per-Query Timeouts}: The default timeout of 6000\,ms prevents complex join queries from blocking the pipeline. Timed-out queries are retried before falling back to the default cardinality.
-    \item \textbf{Transaction Isolation}: Each query execution is wrapped in its own transaction with explicit commit/rollback, preventing cascading failures.
-    \item \textbf{Rate Limiting}: A configurable sleep interval (default: 0.1\,s) between queries prevents database overload during large batch labeling operations.
-\end{enumerate}
+This chapter presents the training methodology for the learned cardinality estimator, encompassing database labeling, feature extraction, the Multi-Set Convolutional Network architecture, active learning strategies, and the evaluation framework. Together, these components transform generated queries into a trained model capable of accurate cardinality prediction.
 
 
-\section{Materialized Samples and Bitmap Generation}
+\section{Database Labeling}
 
-The MSCN architecture requires bitmap features that capture the selectivity of each query's predicates on the underlying data. We implement a two-phase approach: pre-sampling table rows at pipeline initialization, and generating per-query bitmaps at runtime.
+Ground truth cardinalities are obtained by executing reconstructed \texttt{SELECT COUNT(*)} queries against the target database. Each query's tables, joins, and predicates are assembled into a complete SQL statement and submitted to the database engine. Since generated workloads contain queries of widely varying complexity, some involving expensive multi-table joins over tens of millions of rows, the labeling pipeline enforces per-query timeouts and implements retry logic to ensure that no single query can block the pipeline. Queries that fail after all retries are assigned a fallback cardinality of one, satisfying the log-normalization requirement of the model while allowing the pipeline to continue. All cardinalities are clamped to a minimum of one because the training loss operates in log-space, where $\log(0)$ is undefined.
 
-\subsection{Phase 1: Materialized Sample Creation}
-
-At pipeline initialization, the system randomly samples a fixed number of rows (default: 1000) from each table in the database. These samples are materialized in memory and reused across all bitmap generation operations.
-
-\begin{algorithm}[htbp]
-\caption{Materialized Sample Creation}
-\label{alg:materialized_samples}
-\begin{algorithmic}[1]
-\Procedure{CreateMaterializedSamples}{cursor, table\_pk\_map, num\_samples}
-    \State samples $\gets$ \{\}
-    \For{each (table\_name, pk\_col) in table\_pk\_map}
-        \State sql $\gets$ ``SELECT '' + pk\_col + `` FROM '' + table\_name
-        \State \hspace{2em} + `` ORDER BY RANDOM() LIMIT '' + num\_samples
-        \State cursor.execute(sql)
-        \State pks $\gets$ [row[0] for row in cursor.fetchall()]
-        \State samples[table\_name] $\gets$ pks
-    \EndFor
-    \State \Return samples
-\EndProcedure
-\end{algorithmic}
-\end{algorithm}
-
-Primary keys are automatically detected by querying the \texttt{information\_schema} for primary key constraints. When no explicit primary keys exist, the system falls back to using the first column of each table as a pseudo-key.
-
-\subsection{Phase 2: Runtime Bitmap Generation}
-
-For each query, bitmaps are generated by evaluating the query's predicates against the materialized samples. This produces a binary vector per table, where each bit indicates whether the corresponding sampled row satisfies the query's filter conditions on that table.
-
-\begin{algorithm}[htbp]
-\caption{Runtime Bitmap Generation for a Single Query}
-\label{alg:bitmap_gen}
-\begin{algorithmic}[1]
-\Procedure{GenerateBitmap}{cursor, query, samples, pk\_map, num\_samples}
-    \State bitmaps $\gets$ []
-    \For{each table\_entry in query.tables}
-        \State table\_name, alias $\gets$ ParseTableAlias(table\_entry)
-        \State pk\_col $\gets$ pk\_map[table\_name]
-        \State sample\_pks $\gets$ samples[table\_name]
-        \State table\_preds $\gets$ ExtractPredicatesForAlias(query.predicates, alias)
-        \If{table\_preds is empty}
-            \State bitmap $\gets$ \textbf{ones}(num\_samples) \Comment{All rows match}
-        \Else
-            \State where $\gets$ pk\_col + `` = ANY(\$1)''
-            \For{each (col, op, val) in table\_preds}
-                \State where $\gets$ where + `` AND '' + col + `` '' + op + `` '' + val
-            \EndFor
-            \State cursor.execute(``SELECT '' + pk\_col + `` FROM '' + table\_name
-            \State \hspace{4.5em} + `` WHERE '' + where, [sample\_pks])
-            \State matching\_pks $\gets$ \{row[0] for row in cursor.fetchall()\}
-            \State bitmap $\gets$ [1 if pk $\in$ matching\_pks else 0 for pk in sample\_pks]
-        \EndIf
-        \State bitmaps.append(bitmap[:num\_samples])
-    \EndFor
-    \State \Return bitmaps
-\EndProcedure
-\end{algorithmic}
-\end{algorithm}
-
-The bitmap generation approach offers several advantages over alternative feature representations:
-
-\begin{itemize}
-    \item \textbf{Fixed Dimensionality}: Each bitmap has exactly \texttt{num\_samples} bits regardless of table size, enabling uniform tensor construction.
-    \item \textbf{Data-Aware}: Unlike purely structural features, bitmaps capture the actual selectivity of predicates on the data distribution.
-    \item \textbf{Composable}: Bitmaps for multi-table queries are naturally composed by generating independent bitmaps per table.
-    \item \textbf{Reusable}: The same materialized samples serve all queries, amortizing the initial sampling cost.
-\end{itemize}
+The labeling stage is the most computationally expensive part of the pipeline. A single query on the IMDB dataset can take several seconds to execute, and labeling thousands of queries may require hours of database time. This cost is the primary motivation for active learning: by intelligently selecting which queries to label, the framework achieves strong model performance while executing only a fraction of the total query pool.
 
 
-\section{Query Feature Encoding}
+\section{Feature Extraction and Bitmap Generation}
 
-The MSCN model requires fixed-size tensor inputs. Since queries have variable numbers of tables, predicates, and joins, we employ a set-based encoding with zero-padding and masking.
+The MSCN architecture requires fixed-size tensor inputs, but queries have variable numbers of tables, predicates, and joins. The feature extraction stage addresses this through set-based encoding with zero-padding and masking.
 
-\subsection{Vocabulary Construction}
+Before encoding any queries, the system builds encoding vocabularies from the complete query pool. A table vocabulary provides one-hot encodings over all unique table entries, a column vocabulary covers all unique predicate columns, an operator vocabulary covers the observed comparison operators, and a join vocabulary covers all unique join conditions. These vocabularies are sorted alphabetically to ensure deterministic encoding across runs.
 
-Before encoding any queries, the system builds encoding vocabularies from the complete query pool:
-
-\begin{enumerate}
-    \item \textbf{Table Vocabulary}: One-hot encoding over all unique table entries (e.g., ``title t'', ``movie\_info mi'')
-    \item \textbf{Column Vocabulary}: One-hot encoding over all unique predicate columns
-    \item \textbf{Operator Vocabulary}: One-hot encoding over all observed operators (\texttt{=}, \texttt{<}, \texttt{>})
-    \item \textbf{Join Vocabulary}: One-hot encoding over all unique join conditions
-\end{enumerate}
-
-Vocabularies are sorted alphabetically to ensure deterministic encoding across runs.
-
-\subsection{Per-Component Encoding}
-
-Each query is encoded into three sets of feature vectors:
-
-\subsubsection{Table/Sample Encoding}
-
-For each table $t_i$ in the query, the feature vector is:
+Each query is then encoded into three sets of feature vectors. For each table $t_i$ in the query, the feature vector concatenates the table's one-hot encoding with a bitmap vector that captures the selectivity of the query's predicates on a pre-sampled set of rows:
 
 \begin{equation}
 \mathbf{s}_i = [\text{onehot}(t_i) \| \text{bitmap}(t_i)] \in \mathbb{R}^{|T| + n_{\text{samples}}}
 \end{equation}
 
-where $|T|$ is the table vocabulary size and $n_{\text{samples}}$ is the bitmap length (default: 1000).
-
-\subsubsection{Predicate Encoding}
-
-For each predicate $(c_j, op_j, v_j)$, the feature vector is:
+For each predicate $(c_j, op_j, v_j)$, the feature vector concatenates a column one-hot vector, an operator one-hot vector, and the normalized predicate value:
 
 \begin{equation}
 \mathbf{p}_j = [\text{onehot}(c_j) \| \text{onehot}(op_j) \| \text{norm}(v_j)] \in \mathbb{R}^{|C| + |O| + 1}
 \end{equation}
 
-where the value is normalized using min-max scaling: $\text{norm}(v) = \frac{v - v_{\min}}{v_{\max} - v_{\min}}$.
+where the value is normalized using min-max scaling: $\text{norm}(v) = \frac{v - v_{\min}}{v_{\max} - v_{\min}}$. Each join condition $j_k$ is simply represented as its one-hot encoding $\mathbf{j}_k = \text{onehot}(j_k) \in \mathbb{R}^{|J|}$.
 
-\subsubsection{Join Encoding}
-
-For each join condition $j_k$, the feature vector is simply the one-hot encoding:
-
-\begin{equation}
-\mathbf{j}_k = \text{onehot}(j_k) \in \mathbb{R}^{|J|}
-\end{equation}
-
-\subsection{Padding and Masking}
-
-Since queries have variable numbers of components, we pad each set to the maximum observed size and generate binary masks indicating which positions contain real data versus padding. This is a standard technique for batching variable-length sequences in neural networks.
+Since queries have variable numbers of components, each set is padded to the maximum observed size and binary masks are generated to indicate which positions contain real data versus padding:
 
 \begin{equation}
 \text{mask}(i) = \begin{cases} 1 & \text{if position } i \text{ contains real data} \\ 0 & \text{if position } i \text{ is padding} \end{cases}
@@ -236,47 +41,46 @@ Since queries have variable numbers of components, we pad each set to the maximu
 
 The masks are used during the mean pooling operation to compute averages only over non-padded positions, preventing dilution of the learned representations.
 
+The bitmap features deserve special attention, as they are the mechanism through which the model gains awareness of the underlying data distribution. At pipeline initialization, a fixed set of rows is randomly sampled from each table and materialized in memory. For each query, the system evaluates which of these sampled rows satisfy the query's filter predicates on each table, producing a binary vector where each bit indicates whether the corresponding sampled row passes the filter. This approach offers fixed dimensionality regardless of table size, composability across multi-table queries, and reusability of the same materialized samples for all queries in the workload.
 
-\section{Multi-Set Convolutional Network (MSCN)}
 
-\subsection{Architecture Overview}
+\section{Multi-Set Convolutional Network}
 
-The MSCN architecture treats a SQL query as a composition of three independent sets---tables (with bitmaps), predicates, and joins---each processed through set-specific neural modules before being combined for the final prediction. This design naturally handles the permutation invariance of SQL components: the order of tables in the FROM clause, predicates in the WHERE clause, and join conditions does not affect the query semantics.
-
-Figure~\ref{fig:mscn_architecture} illustrates the complete MSCN architecture as implemented in our system.
+The MSCN architecture, proposed by Kipf et al.~\cite{DBLP:conf/cidr/KipfKRLBK19}, treats a SQL query as a composition of three independent sets---tables with bitmaps, predicates, and joins---each processed through set-specific neural modules before being combined for the final prediction. This design naturally handles the permutation invariance of SQL components: the order of tables in the FROM clause, predicates in the WHERE clause, and join conditions does not affect the query semantics. Figure~\ref{fig:mscn_architecture} illustrates the complete architecture.
 
 \begin{figure}[htbp]
 \centering
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
     node distance=2cm and 3cm,
     block/.style={draw, rectangle, rounded corners=3pt, minimum width=3cm, minimum height=1cm, align=center, font=\small},
     arrow/.style={->, thick, >=stealth},
 ]
     % Input layer
-    \node [block, fill=blue!20] (s_in) {Sample Features\\$\mathbf{S} \in \mathbb{R}^{b \times n_t \times d_s}$};
+    \node [block, fill=blue!20] (s_in) {Table Features\\$\mathbf{S} \in \mathbb{R}^{b \times n_t \times d_s}$};
     \node [block, fill=green!20, right=of s_in] (p_in) {Predicate Features\\$\mathbf{P} \in \mathbb{R}^{b \times n_p \times d_p}$};
     \node [block, fill=yellow!20, right=of p_in] (j_in) {Join Features\\$\mathbf{J} \in \mathbb{R}^{b \times n_j \times d_j}$};
 
     % MLP layers
-    \node [block, below=of s_in] (s_mlp1) {Linear($d_s$, $h$) + ReLU\\+ Dropout(0.1)};
-    \node [block, below=of p_in] (p_mlp1) {Linear($d_p$, $h$) + ReLU\\+ Dropout(0.1)};
-    \node [block, below=of j_in] (j_mlp1) {Linear($d_j$, $h$) + ReLU\\+ Dropout(0.1)};
+    \node [block, below=of s_in] (s_mlp1) {Neural Layer 1\\+ Activation + Dropout};
+    \node [block, below=of p_in] (p_mlp1) {Neural Layer 1\\+ Activation + Dropout};
+    \node [block, below=of j_in] (j_mlp1) {Neural Layer 1\\+ Activation + Dropout};
 
-    \node [block, below=1.5cm of s_mlp1] (s_mlp2) {Linear($h$, $h$) + ReLU\\+ Dropout(0.1)};
-    \node [block, below=1.5cm of p_mlp1] (p_mlp2) {Linear($h$, $h$) + ReLU\\+ Dropout(0.1)};
-    \node [block, below=1.5cm of j_mlp1] (j_mlp2) {Linear($h$, $h$) + ReLU\\+ Dropout(0.1)};
+    \node [block, below=1.5cm of s_mlp1] (s_mlp2) {Neural Layer 2\\+ Activation + Dropout};
+    \node [block, below=1.5cm of p_mlp1] (p_mlp2) {Neural Layer 2\\+ Activation + Dropout};
+    \node [block, below=1.5cm of j_mlp1] (j_mlp2) {Neural Layer 2\\+ Activation + Dropout};
 
     % Pooling
-    \node [block, fill=gray!15, below=1.5cm of s_mlp2] (s_pool) {Masked Mean Pool};
-    \node [block, fill=gray!15, below=1.5cm of p_mlp2] (p_pool) {Masked Mean Pool};
-    \node [block, fill=gray!15, below=1.5cm of j_mlp2] (j_pool) {Masked Mean Pool};
+    \node [block, fill=gray!15, below=1.5cm of s_mlp2] (s_pool) {Average Pooling};
+    \node [block, fill=gray!15, below=1.5cm of p_mlp2] (p_pool) {Average Pooling};
+    \node [block, fill=gray!15, below=1.5cm of j_mlp2] (j_pool) {Average Pooling};
 
     % Concatenation
-    \node [block, fill=red!20, below=1.5cm of p_pool] (concat) {Concatenate\\$\mathbb{R}^{3h}$};
+    \node [block, fill=red!20, below=1.5cm of p_pool] (concat) {Combine All\\$\mathbb{R}^{3h}$};
 
     % Output
-    \node [block, below=1.5cm of concat] (out_mlp) {Linear($3h$, $h$) + ReLU + Dropout(0.1)};
-    \node [block, fill=orange!20, below=1.5cm of out_mlp] (sigmoid) {Linear($h$, 1) + Sigmoid\\$\hat{y} \in [0, 1]$};
+    \node [block, below=1.5cm of concat] (out_mlp) {Output Layer + Activation + Dropout};
+    \node [block, fill=orange!20, below=1.5cm of out_mlp] (sigmoid) {Final Prediction\\$\hat{y} \in [0, 1]$};
 
     % Arrows
     \draw [arrow] (s_in) -- (s_mlp1);
@@ -294,291 +98,100 @@ Figure~\ref{fig:mscn_architecture} illustrates the complete MSCN architecture as
     \draw [arrow] (concat) -- (out_mlp);
     \draw [arrow] (out_mlp) -- (sigmoid);
 
-\end{tikzpicture}
-\caption{Complete MSCN architecture. Each query component (samples, predicates, joins) passes through a dedicated two-layer MLP with dropout, followed by masked mean pooling. The pooled representations are concatenated and processed through an output MLP with sigmoid activation to produce a normalized cardinality estimate $\hat{y} \in [0, 1]$.}
+\end{tikzpicture}%
+}
+\caption{Complete MSCN architecture. Each query component (tables, predicates, joins) passes through a dedicated two-layer neural network with dropout regularization, followed by average pooling. The pooled representations are combined and processed through an output layer to produce a normalized cardinality estimate $\hat{y} \in [0, 1]$.}
 \label{fig:mscn_architecture}
 \end{figure}
 
-\subsection{Set Processing Modules}
-
-Each set module processes its input through a two-layer MLP with ReLU activations and dropout regularization:
+Each set module processes its input through a two-layer MLP with ReLU activations and dropout regularization. The first layer projects the input features to a hidden dimension $h$, and the second layer refines the representation:
 
 \begin{equation}
-\mathbf{h}_i^{(1)} = \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_1 \mathbf{x}_i + \mathbf{b}_1\right), p=0.1\right)
+\mathbf{h}_i^{(1)} = \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_1 \mathbf{x}_i + \mathbf{b}_1\right), p\right)
 \end{equation}
 
 \begin{equation}
-\mathbf{h}_i^{(2)} = \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_2 \mathbf{h}_i^{(1)} + \mathbf{b}_2\right), p=0.1\right)
+\mathbf{h}_i^{(2)} = \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_2 \mathbf{h}_i^{(1)} + \mathbf{b}_2\right), p\right)
 \end{equation}
 
-\subsection{Masked Mean Pooling}
-
-The masked mean pooling operation aggregates set elements while respecting the padding mask:
+The masked mean pooling operation then aggregates the set elements while respecting the padding mask, computing the average only over positions containing real data:
 
 \begin{equation}
 \mathbf{h}_{\text{pool}} = \frac{\sum_{i=1}^{n} m_i \cdot \mathbf{h}_i^{(2)}}{\sum_{i=1}^{n} m_i}
 \end{equation}
 
-where $m_i \in \{0, 1\}$ is the mask value for position $i$. Division by the mask sum ensures the pooled representation's magnitude is independent of the number of valid elements.
-
-\subsection{Output Network}
-
-The concatenated pooled representations from all three modules are processed through the output network:
+The concatenated pooled representations from all three modules pass through an output network that produces the final normalized cardinality estimate:
 
 \begin{equation}
-\mathbf{h}_{\text{cat}} = [\mathbf{h}_{\text{sample}} \| \mathbf{h}_{\text{pred}} \| \mathbf{h}_{\text{join}}] \in \mathbb{R}^{3h}
-\end{equation}
-
-\begin{equation}
-\hat{y} = \sigma\left(\mathbf{W}_{\text{out2}} \cdot \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_{\text{out1}} \mathbf{h}_{\text{cat}} + \mathbf{b}_{\text{out1}}\right)\right) + \mathbf{b}_{\text{out2}}\right)
+\hat{y} = \sigma\left(\mathbf{W}_{\text{out2}} \cdot \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_{\text{out1}} [\mathbf{h}_{\text{sample}} \| \mathbf{h}_{\text{pred}} \| \mathbf{h}_{\text{join}}] + \mathbf{b}_{\text{out1}}\right)\right) + \mathbf{b}_{\text{out2}}\right)
 \end{equation}
 
 The sigmoid activation constrains the output to $[0, 1]$, representing a normalized cardinality estimate.
 
-\subsection{Label Normalization}
 
-True cardinalities span many orders of magnitude (from 1 to tens of millions). We normalize labels using log-scale min-max normalization:
+\section{Label Normalization and Loss Function}
+
+True cardinalities span many orders of magnitude, from single-digit counts to tens of millions. Passing raw integer values to the loss function would cause catastrophic gradient imbalances, as the model would be dominated by large-cardinality queries. We normalize labels using log-scale min-max normalization:
 
 \begin{equation}
 y_{\text{norm}} = \frac{\log(y) - \log_{\min}}{\log_{\max} - \log_{\min}}
 \end{equation}
 
-where $\log_{\min}$ and $\log_{\max}$ are the minimum and maximum log-cardinalities in the training set. At inference time, predictions are unnormalized:
+where $\log_{\min}$ and $\log_{\max}$ are the minimum and maximum log-cardinalities in the training set. At inference time, predictions are unnormalized by inverting this transformation:
 
 \begin{equation}
 \hat{y}_{\text{actual}} = \exp\left(\hat{y}_{\text{norm}} \cdot (\log_{\max} - \log_{\min}) + \log_{\min}\right)
 \end{equation}
 
-This normalization ensures that the model operates in a range-balanced space where both small and large cardinalities receive comparable gradient signals during training.
-
-
-\section{Loss Function: Q-Error}
-
-We use the Q-error as both the loss function during training and the evaluation metric. Q-error is the standard measure for cardinality estimation quality, defined as:
+We use Q-error as both the training loss and the evaluation metric. Q-error is the standard measure for cardinality estimation quality, defined as:
 
 \begin{equation}
 Q(p, a) = \max\left(\frac{p}{a}, \frac{a}{p}\right)
 \end{equation}
 
-where $p$ is the predicted cardinality and $a$ is the actual cardinality. Q-error has two desirable properties:
-
-\begin{enumerate}
-    \item \textbf{Symmetry}: Overestimation and underestimation by the same factor yield the same error (e.g., predicting 100 when the answer is 10 yields $Q = 10$, and predicting 1 when the answer is 10 also yields $Q = 10$).
-    \item \textbf{Scale Invariance}: The error is invariant to the absolute scale of cardinalities, treating a factor-of-2 error identically whether the true cardinality is 100 or 1,000,000.
-\end{enumerate}
-
-The training loss is the mean Q-error over a mini-batch, computed on unnormalized predictions and labels:
-
-\begin{equation}
-\mathcal{L}_{\text{batch}} = \frac{1}{N} \sum_{i=1}^{N} \max\left(\frac{\hat{y}_i^{\text{unnorm}}}{y_i^{\text{unnorm}}}, \frac{y_i^{\text{unnorm}}}{\hat{y}_i^{\text{unnorm}}}\right)
-\end{equation}
-
-Both predicted and actual values are clamped to a minimum of $10^{-10}$ to prevent division-by-zero errors.
+where $p$ is the predicted cardinality and $a$ is the actual cardinality. Q-error possesses two desirable properties: it is symmetric, meaning that overestimation and underestimation by the same factor yield the same error, and it is scale-invariant, treating a factor-of-two error identically whether the true cardinality is one hundred or one million. The training loss is the mean Q-error over a mini-batch, computed on unnormalized predictions and labels.
 
 
 \section{Active Learning Framework}
 
-\subsection{Problem Formulation}
+Active learning addresses the central question of this work: given a fixed labeling budget, which queries should be labeled to maximize model performance? Formally, let $\mathcal{U} = \{q_1, q_2, \ldots, q_N\}$ be the unlabeled query pool, let $\mathcal{L} \subset \mathcal{U}$ be the current labeled set with $|\mathcal{L}| \ll |\mathcal{U}|$, and let $f_\theta$ be the MSCN model trained on $\mathcal{L}$. The goal is to select a batch $\mathcal{B} \subset \mathcal{U} \setminus \mathcal{L}$ of size $k$ that maximizes the improvement in $f_\theta$'s performance on a held-out validation set $\mathcal{V}$. The selection is guided by an acquisition function $\alpha: \mathcal{U} \setminus \mathcal{L} \rightarrow \mathbb{R}$ that scores each unlabeled query by its estimated informativeness.
 
-Active learning addresses the question: \emph{given a fixed labeling budget, which queries should be labeled to maximize model performance?} Formally:
+The framework supports three acquisition strategies. Random sampling serves as the baseline, selecting queries uniformly at random from the unlabeled pool with $\alpha_{\text{random}}(q) = \text{Uniform}[0, 1]$. Despite its simplicity, random sampling provides reasonable performance due to the inherent diversity of the query pool.
 
-\begin{itemize}
-    \item Let $\mathcal{U} = \{q_1, q_2, \ldots, q_N\}$ be the unlabeled query pool
-    \item Let $\mathcal{L} \subset \mathcal{U}$ be the current labeled set with $|\mathcal{L}| \ll |\mathcal{U}|$
-    \item Let $f_\theta$ be the MSCN model parameterized by $\theta$, trained on $\mathcal{L}$
-    \item The goal is to select a batch $\mathcal{B} \subset \mathcal{U} \setminus \mathcal{L}$ of size $k$ that maximizes the improvement in $f_\theta$'s performance on a validation set $\mathcal{V}$
-\end{itemize}
+Uncertainty sampling selects queries where the model is most uncertain about its prediction. For the MSCN model with sigmoid output, uncertainty is highest when the normalized prediction is near 0.5, yielding $\alpha_{\text{uncertainty}}(q) = -| f_\theta(q) - 0.5 |$. The intuition is that the model is least confident about these queries, and labeling them provides the most informative training signal.
 
-The selection is guided by an acquisition function $\alpha: \mathcal{U} \setminus \mathcal{L} \rightarrow \mathbb{R}$ that scores each unlabeled query by its estimated informativeness.
-
-\subsection{Acquisition Strategies}
-
-\subsubsection{Random Sampling (Baseline)}
-
-Random sampling selects queries uniformly at random from the unlabeled pool:
-
-\begin{equation}
-\alpha_{\text{random}}(q) = \text{Uniform}[0, 1]
-\end{equation}
-
-This serves as the baseline strategy against which intelligent acquisition functions are compared. Despite its simplicity, random sampling provides reasonable performance due to the diversity inherent in the query pool.
-
-\subsubsection{Uncertainty Sampling}
-
-Uncertainty sampling selects queries where the model is most uncertain about its prediction. For the MSCN model with sigmoid output, uncertainty is highest when the normalized prediction is near 0.5:
-
-\begin{equation}
-\alpha_{\text{uncertainty}}(q) = -\left| f_\theta(q) - 0.5 \right|
-\end{equation}
-
-Queries with the highest $\alpha$ values (i.e., predictions closest to 0.5) are selected for labeling. The intuition is that the model is least confident about these queries, and labeling them provides the most informative training signal.
-
-For uncertainty sampling, the model operates in evaluation mode (dropout disabled), producing deterministic predictions. The unlabeled queries are encoded using dummy bitmap features (all zeros) since their true bitmaps are not yet available---the model uses structural features and zero-valued bitmaps as input.
-
-\subsubsection{MC Dropout Uncertainty}
-
-Monte Carlo (MC) Dropout~\cite{gal2016dropout} provides a Bayesian approximation of model uncertainty by performing multiple stochastic forward passes with dropout enabled at inference time. The variance across these predictions serves as an uncertainty estimate:
-
-\begin{equation}
-\{\hat{y}^{(1)}, \hat{y}^{(2)}, \ldots, \hat{y}^{(T)}\} = \{f_\theta^{(t)}(q)\}_{t=1}^T \quad \text{(dropout active)}
-\end{equation}
+Monte Carlo Dropout~\cite{gal2016dropout} provides a Bayesian approximation of model uncertainty by performing $T$ stochastic forward passes with dropout enabled at inference time. The variance across these predictions serves as the uncertainty estimate:
 
 \begin{equation}
 \alpha_{\text{MC}}(q) = \text{Var}\left(\{\hat{y}^{(t)}\}_{t=1}^T\right) = \frac{1}{T} \sum_{t=1}^T \left(\hat{y}^{(t)} - \bar{y}\right)^2
 \end{equation}
 
-where $\bar{y} = \frac{1}{T}\sum_{t=1}^T \hat{y}^{(t)}$ is the mean prediction, and $T = 25$ is the number of forward passes.
+where $\bar{y} = \frac{1}{T}\sum_{t=1}^T \hat{y}^{(t)}$ is the mean prediction. Queries with the highest variance are selected, as high variance indicates that the model's predictions are sensitive to which neurons are dropped, implying that the model has not yet learned a stable representation for these queries.
 
-Queries with the highest variance are selected, as high variance indicates that the model's predictions are sensitive to which neurons are dropped out, implying that the model has not yet learned a stable representation for these queries.
-
-The behavior of these three acquisition strategies is compared experimentally in Chapter~\ref{chap:experiments}, where we visualize how each strategy selects queries from different regions of the uncertainty landscape.
-
-
-\subsection{Active Learning Loop}
-
-Algorithm~\ref{alg:active_learning_full} presents the complete active learning procedure as implemented in the pipeline.
+Algorithm~\ref{alg:active_learning_full} presents the complete active learning procedure.
 
 \begin{algorithm}[htbp]
-\caption{Complete Active Learning Loop with Database Labeling}
+\caption{Active Learning for Cardinality Estimation}
 \label{alg:active_learning_full}
 \begin{algorithmic}[1]
-\Procedure{ActiveLearningLoop}{queries, val\_set, config}
-    \State \Comment{--- Initialization ---}
-    \State pool, unlabeled $\gets$ SplitPool(queries)
-    \State init\_size $\gets \lfloor 0.2 \times |$pool$| \rfloor$ \Comment{Use 20\% of pool as initial set}
-    \State labeled $\gets$ pool[:init\_size]
-    \State unlabeled $\gets$ pool[init\_size:]
-    \State LabelQueries(labeled, db\_cursor) \Comment{Initial labeling}
-    \State GenerateBitmaps(labeled)
-    \State model $\gets$ InitMSCN(config.hid\_units)
-    \State optimizer $\gets$ Adam(model.params, lr=$10^{-4}$)
-    \State
-    \For{round $\gets$ 1 \textbf{to} config.rounds}
-        \State \Comment{--- Train ---}
-        \State train\_data $\gets$ EncodeAndPad(labeled)
-        \State train\_loader $\gets$ DataLoader(train\_data, batch=1024)
-        \For{epoch $\gets$ 1 \textbf{to} config.epochs}
-            \State model.train()
-            \For{each batch in train\_loader}
-                \State preds $\gets$ model(batch)
-                \State loss $\gets$ QErrorLoss(preds, batch.targets)
-                \State optimizer.step(loss.backward())
-            \EndFor
-        \EndFor
-        \State
-        \State \Comment{--- Evaluate ---}
-        \State val\_preds, val\_labels $\gets$ Predict(model, val\_loader)
-        \State qerrors $\gets$ ComputeQErrors(val\_preds, val\_labels)
-        \State Record(median(qerrors), p90(qerrors), p95(qerrors))
-        \State
-        \State \Comment{--- Acquire ---}
-        \State acquire $\gets$ min(config.acquire, $|$unlabeled$|$)
-        \If{config.strategy = ``mc\_dropout''}
-            \State scores $\gets$ MCDropoutVariance(model, unlabeled, T=25)
-        \ElsIf{config.strategy = ``uncertainty''}
-            \State scores $\gets$ -$|$Predict(model, unlabeled) $-$ 0.5$|$
-        \Else
-            \State scores $\gets$ RandomScores($|$unlabeled$|$)
-        \EndIf
-        \State top\_k $\gets$ TopK(scores, acquire)
-        \State LabelQueries(top\_k, db\_cursor)
-        \State GenerateBitmaps(top\_k)
-        \State labeled $\gets$ labeled $\cup$ top\_k
-        \State unlabeled $\gets$ unlabeled $\setminus$ top\_k
-    \EndFor
-    \State \Return model, metrics
-\EndProcedure
+\State Set aside 10\% of all queries as a fixed validation set
+\State From the remaining queries, randomly pick 20\% as the initial training set
+\State Obtain true cardinalities for the initial training set by running them on the database
+\State Create a new MSCN model
+\For{each active learning round}
+    \State Train the model on all currently labeled queries
+    \State Measure the model's accuracy on the validation set
+    \State Use the chosen strategy to score each unlabeled query by how informative it would be
+    \State Select the top-scoring queries and obtain their true cardinalities from the database
+    \State Add the newly labeled queries to the training set
+\EndFor
+\State \Return the trained model and accuracy metrics
 \end{algorithmic}
 \end{algorithm}
 
-\subsection{Label Budget Analysis}
-
-The total number of queries labeled across the active learning process is:
-
-\begin{equation}
-|\mathcal{L}_{\text{total}}| = \lfloor 0.2 \times |\mathcal{P}| \rfloor + R \times k_{\text{acquire}} + |\mathcal{V}|
-\end{equation}
-
-where $|\mathcal{P}|$ is the pool size, $R$ is the number of rounds, $k_{\text{acquire}}$ is the per-round acquisition size, and $|\mathcal{V}|$ is the validation set size. The initial labeled set comprises 20\% of the pool, ensuring sufficient data for the model to learn a reasonable baseline before active acquisition begins. With default parameters ($|\mathcal{P}| = 4500$, $R = 5$, $k = 200$, $|\mathcal{V}| \approx 500$), the total labeled set size is approximately 2400 queries---just 48\% of the 5000-query pool.
-
-
-
-\section{Evaluation Framework}
-
-\subsection{Metrics}
-
-The primary evaluation metric is the Q-error, computed at multiple percentiles:
-
-\begin{itemize}
-    \item \textbf{Median Q-Error}: Robust measure of typical prediction quality. A median Q-error of 2.0 means the model's predictions are typically within a factor of 2 of the true cardinality.
-    \item \textbf{90th Percentile Q-Error}: Characterizes performance on moderately difficult queries.
-    \item \textbf{95th Percentile Q-Error}: Reflects tail-end performance on the hardest queries.
-    \item \textbf{Maximum Q-Error}: Worst-case estimation error.
-    \item \textbf{Mean Q-Error}: Average error, more sensitive to outliers than the median.
-\end{itemize}
-
-\subsection{Learning Curve Visualization}
-
-Learning curves plot the validation metric (e.g., median Q-error) against the number of labeled training queries. These curves are the primary tool for comparing acquisition strategies, as they directly show the sample efficiency of each approach. The actual learning curves from our experiments are presented in Chapter~\ref{chap:experiments}.
-
-\subsection{Predicted vs.\ Actual Scatter Plot}
-
-The predicted vs.\ actual scatter plot provides a visual assessment of model calibration. Points near the diagonal line $y = x$ indicate accurate predictions, while systematic deviations reveal estimation biases. Experimental scatter plots are presented in Chapter~\ref{chap:experiments}.
-
-\subsection{Training Loss Across Rounds}
-
-Training loss curves show how the loss evolves across active learning rounds. Each subsequent round is expected to start from a lower loss baseline due to the model retaining learned parameters and receiving additional informative training data. Experimental training loss curves are presented in Chapter~\ref{chap:experiments}.
-
-
-\section{Q-Error Analysis Across Rounds}
-
-\subsection{Per-Round Q-Error Statistics}
-
-Table~\ref{tab:qerror_stats} presents the Q-error statistics across active learning rounds for the three acquisition strategies.
-
-\begin{table}[htbp]
-\centering
-\caption{Q-error statistics across active learning rounds for different acquisition strategies (lower is better).}
-\label{tab:qerror_stats}
-\begin{tabular}{|l|c|c|c|c|c|}
-\hline
-\textbf{Strategy} & \textbf{Round} & \textbf{Labeled} & \textbf{Median} & \textbf{90th Pct.} & \textbf{95th Pct.} \\
-\hline
-\multirow{5}{*}{Random} & 1 & 200 & 35.0 & 120.5 & 250.3 \\
- & 2 & 400 & 24.0 & 85.2 & 180.7 \\
- & 3 & 600 & 18.0 & 62.4 & 135.1 \\
- & 4 & 800 & 14.0 & 48.3 & 105.6 \\
- & 5 & 1000 & 11.5 & 38.9 & 82.4 \\
-\hline
-\multirow{5}{*}{Uncertainty} & 1 & 200 & 35.0 & 120.5 & 250.3 \\
- & 2 & 400 & 20.0 & 72.1 & 155.8 \\
- & 3 & 600 & 14.0 & 50.5 & 110.2 \\
- & 4 & 800 & 10.5 & 38.0 & 85.6 \\
- & 5 & 1000 & 8.8 & 30.2 & 68.4 \\
-\hline
-\multirow{5}{*}{MC Dropout} & 1 & 200 & 35.0 & 120.5 & 250.3 \\
- & 2 & 400 & 18.0 & 65.3 & 140.2 \\
- & 3 & 600 & 12.5 & 44.8 & 98.5 \\
- & 4 & 800 & 9.2 & 33.1 & 72.4 \\
- & 5 & 1000 & 7.5 & 26.8 & 58.1 \\
-\hline
-\end{tabular}
-\end{table}
-
-
-\subsection{Sample Efficiency}
-
-The sample efficiency of each strategy can be quantified by the number of labeled queries needed to reach a target Q-error. For a target median Q-error of 10.0:
-
-\begin{itemize}
-    \item \textbf{Random Sampling}: Requires approximately 900 labeled queries
-    \item \textbf{Uncertainty Sampling}: Requires approximately 750 labeled queries (17\% reduction)
-    \item \textbf{MC Dropout}: Requires approximately 650 labeled queries (28\% reduction)
-\end{itemize}
-
-These reductions translate directly into saved database execution time, which is the dominant cost factor in the pipeline.
+The total number of queries labeled across the active learning process is $|\mathcal{L}_{\text{total}}| = \lfloor 0.2 \times |\mathcal{P}| \rfloor + R \times k_{\text{acquire}} + |\mathcal{V}|$, where $|\mathcal{P}|$ is the pool size, $R$ is the number of rounds, $k_{\text{acquire}}$ is the per-round acquisition size, and $|\mathcal{V}|$ is the validation set size. The initial labeled set comprises 20\% of the pool, providing sufficient data for the model to learn a reasonable baseline before active acquisition begins.
 
 
 \section{Summary}
 
-This chapter presented the complete training approach for the learned cardinality estimator, covering: (1)~the robust database labeling pipeline with timeout handling and error recovery, (2)~the two-phase materialized sample and bitmap generation process, (3)~the set-based query encoding with vocabulary construction and zero-padding, (4)~the MSCN neural network architecture with masked mean pooling and dropout regularization, (5)~the Q-error loss function, (6)~the active learning framework with three acquisition strategies (random, uncertainty, and MC dropout), and (7)~the comprehensive evaluation methodology. The active learning strategies achieve 17--35\% improvement in sample efficiency compared to random sampling, demonstrating the practical value of intelligent query selection for training learned database components.
+This chapter presented the complete training approach for the learned cardinality estimator, covering the database labeling process, the set-based query encoding with bitmap features, the MSCN neural network architecture with masked mean pooling, the Q-error loss function, and the active learning framework with three acquisition strategies. The active learning strategies aim to achieve significant improvements in sample efficiency compared to random sampling, reducing the number of expensive database executions needed to train an accurate model. The following chapter presents the experimental evaluation of the complete pipeline.
