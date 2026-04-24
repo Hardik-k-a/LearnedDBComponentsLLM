@@ -3,24 +3,26 @@
 \label{chap:query_generation}
 \pagestyle{plain}
 
-This chapter presents the detailed approach for generating diverse, realistic SQL query workloads using large language models. Query generation is the foundational stage of the pipeline, as the quality and diversity of generated queries directly impacts the effectiveness of downstream model training. We describe the prompt engineering strategy, the multi-layer validation pipeline, the format conversion process, and the synthetic fallback generator.
+A learned cardinality estimator is only as good as the queries it trains on. Feed it a narrow, repetitive workload and it will memorize patterns instead of learning generalizable estimation. Feed it structurally diverse queries that cover a wide range of join topologies, predicate selectivities, and table combinations, and it stands a much better chance of producing useful estimates on unseen queries. This chapter describes how we generate such workloads, first through a large language model and then through a deterministic fallback, and how we ensure that every query reaching the training pipeline is valid, schema-compatible, and correctly formatted.
 
 
-\section{LLM-Based Query Generation}
+\section{Why Use a Language Model}
 
-Traditional approaches to generating training workloads for learned database components fall into two broad categories: manual collection from query logs and synthetic generation using template-based or random sampling methods. Query logs require access to production systems, raise privacy concerns, and may not cover the full spectrum of query patterns needed for robust model training. Template-based generators, on the other hand, produce queries that are syntactically valid but often lack the structural variety and realistic predicate distributions found in real workloads. Random sampling can generate uniformly distributed queries but misses the complex correlations and patterns that characterize real-world usage.
+The traditional alternatives for obtaining training queries each have clear drawbacks. Query logs drawn from production systems carry privacy risks and tend to reflect the habits of a particular user base rather than the full space of possible queries. Template-based generators can produce any structure their templates define, but those templates must be written by hand and rarely capture the subtle correlations and predicate distributions found in real workloads. Uniform random sampling over the schema produces syntactically valid queries but distributes predicates and join patterns in ways that bear little resemblance to actual usage.
 
-Large language models offer a compelling alternative because they have been trained on vast corpora of natural language and code, including millions of SQL queries. This training enables them to generate queries that exhibit realistic structural patterns, meaningful predicate combinations, and diverse join topologies without explicit programming of these patterns. Our framework uses the Ollama platform to host and serve LLMs locally, ensuring data privacy and eliminating dependency on external API services. The default model is Llama~3.2, selected for its strong code generation capabilities and reasonable computational requirements. The system interacts with Ollama through its REST API, enabling seamless switching between different model sizes and families without code changes.
+Large language models sidestep these issues. Models like Llama~3.2 have been trained on enormous corpora of code and natural language that include millions of SQL queries. When prompted with a schema and a set of generation constraints, they produce queries that look like something a human analyst might write: realistic predicate values, sensible join paths, and a natural mix of simple and complex patterns. The diversity comes for free, baked into the model's learned distribution over SQL, rather than requiring an engineer to enumerate templates.
+
+We host the LLM locally through the Ollama platform. Local hosting means that no schema information or query data ever leaves the researcher's machine, the experiments do not depend on the availability or pricing of a third-party API, and the model version is fixed, which is important for reproducibility.
 
 
 \section{Prompt Design}
 
-The quality of LLM-generated queries critically depends on the prompt design. We employ a carefully structured prompt template that provides the model with sufficient context to generate valid, diverse queries while constraining output to the supported query fragment. The prompt consists of five hierarchically organized components, as illustrated in Figure~\ref{fig:prompt_structure}: a role assignment that establishes the LLM as a SQL workload generator, the complete database schema context including DDL statements with table names, columns, data types, and foreign key relationships, optional column statistics providing min/max values for numeric columns to enable realistic predicate generation, a set of strict generation rules, and an output format specification.
+The quality of what the LLM produces depends almost entirely on the prompt. Ours is structured as a five-part template, illustrated in Figure~\ref{fig:prompt_structure}. The first part assigns a role: ``You are a SQL query workload generator for a database.'' This framing primes the model to produce queries rather than explanations or tutorials. The second part injects the full database schema as DDL statements---table names, columns, data types, foreign keys---so the model knows what it is allowed to reference. The third part supplies column statistics: minimum and maximum values for numeric columns, which help the model pick predicate values that fall within realistic ranges rather than guessing wildly.
 
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[
-    block/.style={draw, rectangle, rounded corners=3pt, minimum width=13cm, minimum height=1.3cm, text centered, font=\small},
+    block/.style={draw, rectangle, rounded corners=3pt, minimum width=12cm, minimum height=1.3cm, text centered, font=\small},
     arrow/.style={->, thick, >=stealth},
     node distance=1.5cm
 ]
@@ -39,20 +41,20 @@ The quality of LLM-generated queries critically depends on the prompt design. We
     \node [left=0.3cm of rules, font=\scriptsize, text=gray, rotate=90, anchor=south] {Constraints};
 
 \end{tikzpicture}
-\caption{Structure of the LLM prompt template, consisting of five hierarchically organized components that guide the model from context understanding to constrained output generation.}
+\caption{Five-part prompt template. The upper components establish what the model knows; the lower components constrain what it is allowed to produce.}
 \label{fig:prompt_structure}
 \end{figure}
 
-The generation rules are critical for ensuring that the produced queries are compatible with the MSCN encoding. The prompt enforces that all queries use the \texttt{SELECT COUNT(*)} format exclusively, involve one to three tables from the provided schema with proper aliases, include join conditions using defined foreign key relationships, and use only simple comparison operators (\texttt{=}, \texttt{<}, \texttt{>}) with numeric values connected by \texttt{AND}. Constructs such as \texttt{OR}, \texttt{IN}, \texttt{LIKE}, \texttt{BETWEEN}, subqueries, and aggregations are explicitly forbidden. These constraints are necessary because the MSCN encoding assumes a specific query structure where predicates are AND-connected simple comparisons over numeric columns; queries violating these constraints would either fail during encoding or produce incorrect feature representations.
+The fourth part is a list of hard constraints that keep the generated queries inside the fragment supported by the MSCN encoder. Every query must use \texttt{SELECT COUNT(*)}, involve one to three tables with proper aliases, join only on defined foreign key paths, and restrict filter predicates to simple comparisons (\texttt{=}, \texttt{<}, \texttt{>}) connected by \texttt{AND}. Constructs like \texttt{OR}, \texttt{IN}, \texttt{LIKE}, subqueries, and aggregations are forbidden. These rules are not arbitrary preferences; the MSCN encoding physically cannot represent queries that violate them, so letting such queries through would produce garbage features.
 
-The prompt instructs the LLM to return queries as a JSON array of objects, each containing a single \texttt{"sql"} field. This structured output format enables reliable parsing and reduces the need for complex text extraction. A fallback regex-based extraction is used when the LLM includes additional text around the JSON.
+The fifth part specifies the output format: a JSON array where each element has a single \texttt{"sql"} key. Structured output like this makes parsing reliable. When the model does wrap extra text around the JSON, a regex-based fallback peels it away.
 
 
-\section{Diversity and Batch Generation}
+\section{Keeping the Workload Diverse}
 
-To maximize workload diversity across generation batches, we employ a rotating set of diversity hints. Each batch receives a different textual hint that steers the LLM toward generating queries with specific characteristics, ranging from single-table queries with various filters to complex three-table joins with multiple predicates, and from point lookups to queries with extreme selectivities. The hint index is computed as $(\lfloor \text{existing\_count} / \text{batch\_size} \rfloor) \bmod 5$, ensuring systematic rotation through all diversity profiles as generation progresses. This approach avoids the mode collapse problem where the LLM repeatedly generates structurally similar queries.
+Left to its own devices, an LLM tends to fall into patterns. After a few batches it may start recycling the same join structures or predicate styles, a problem sometimes called mode collapse. We counteract this with a rotating set of diversity hints. Five hints cycle in sequence: one pushes the model toward single-table queries with varied filters, another toward two-table joins, a third toward three-table joins, a fourth toward a mix of point lookups and range scans, and a fifth toward extreme selectivities---queries returning either a handful of rows or millions. The hint index advances with each batch, so over the course of a full generation run every style gets equal representation.
 
-Generating all queries in a single LLM call would exceed token limits and reduce diversity. Instead, the system generates queries in configurable batches, with the total number of batches determined by $\lceil \text{total\_queries} / \text{batch\_size} \rceil$. Each batch receives a fresh prompt with the current diversity hint, ensuring variety across the full workload. LLM generation is inherently stochastic and may fail due to network errors, malformed JSON output, or hallucination. Each batch is therefore retried up to three times with increasing delays between attempts, achieving near-complete batch success rates in practice. Algorithm~\ref{alg:batch_generation} presents the batch generation procedure.
+Generating all queries in one prompt would blow past the model's context window and collapse diversity. Instead, the system works in batches. The total query target is divided by the batch size, and each batch gets a fresh prompt with the current diversity hint. Algorithm~\ref{alg:batch_generation} outlines the procedure.
 
 \begin{algorithm}[htbp]
 \caption{LLM-Based Query Generation}
@@ -74,10 +76,12 @@ Generating all queries in a single LLM call would exceed token limits and reduce
 \end{algorithmic}
 \end{algorithm}
 
+Because LLM output is stochastic, any individual call can fail---network hiccups, malformed JSON, the model hallucinating prose instead of SQL. Each batch is therefore retried up to three times. In practice this pushes the success rate close to one hundred percent.
 
-\section{Multi-Layer Validation Pipeline}
 
-Raw LLM output must undergo rigorous validation before entering the training pipeline. Despite careful prompt engineering, LLMs can produce queries that are syntactically invalid, reference non-existent schema elements, or use unsupported SQL constructs. Our validation pipeline applies four sequential filtering stages, each progressively more expensive but more thorough, as illustrated in Figure~\ref{fig:validation_pipeline}.
+\section{Filtering Out Bad Queries}
+
+Even with careful prompting, some fraction of the LLM's output will be unusable. A query might reference a column that does not exist, use an \texttt{OR} that slipped past the instructions, or simply be unparseable. Rather than trusting the LLM to be perfect, we pass every query through four progressively stricter validation layers, illustrated in Figure~\ref{fig:validation_pipeline}.
 
 \begin{figure}[htbp]
 \centering
@@ -112,24 +116,24 @@ Raw LLM output must undergo rigorous validation before entering the training pip
     \draw [rarrow] (format.east) -- (r4.west);
 
 \end{tikzpicture}
-\caption{Multi-layer validation pipeline for LLM-generated queries. Each layer progressively filters invalid queries, with rejected queries logged for analysis.}
+\caption{Four-layer validation pipeline. Cheap structural checks run first, expensive schema lookups run last. Queries rejected at any stage are logged for post-hoc analysis.}
 \label{fig:validation_pipeline}
 \end{figure}
 
-The first layer is a fast, regex-based filter that rejects queries containing forbidden SQL patterns such as \texttt{OR}, \texttt{IN}, \texttt{LIKE}, \texttt{BETWEEN}, subqueries, and aggregations. This layer catches the most common LLM errors at minimal computational cost. The second layer parses each surviving query to extract its FROM and WHERE clauses, handling both comma-separated join syntax and explicit \texttt{JOIN...ON} syntax and producing a normalized representation of tables, join conditions, and filter predicates.
+The first layer is cheap: a set of regex checks that reject any query containing forbidden keywords like \texttt{OR}, \texttt{IN}, \texttt{LIKE}, or \texttt{BETWEEN}, as well as any query with more than one \texttt{SELECT} (a sign of subqueries). The second layer attempts to parse what survives, extracting the FROM clause, WHERE clause, and any JOIN\ldots ON clauses and decomposing them into tables, join conditions, and filter predicates.
 
-The third layer validates the parsed query against the database schema, verifying that all referenced table names, column names, and aliases actually exist. Join conditions are checked to confirm that they reference columns participating in defined foreign key relationships. The fourth and final layer converts valid queries from their parsed representation into the MSCN-compatible structured format, decomposing each query into three sets: tables (with aliases), joins (as equality conditions), and predicates (as column-operator-value tuples). This conversion includes operator standardization, value normalization, case normalization, and alias resolution to ensure consistent encoding downstream.
+The third layer cross-references the parsed result against the actual schema. Does every table name exist? Does every alias resolve to a real table? Does every predicate column belong to the table it claims to? Do the join conditions follow defined foreign key paths? Queries that fail any of these checks are discarded. The fourth layer converts the remaining queries into the structured format that MSCN expects: three comma-separated lists of tables, joins, and predicates, plus a placeholder for the cardinality that will be filled in during labeling.
 
 
-\section{Synthetic Query Generator}
+\section{Synthetic Fallback}
 
-For testing and environments where an LLM is unavailable, the framework includes a deterministic synthetic query generator. This generator produces structurally valid queries using parameterized random sampling based on hardcoded table definitions from the target schema. It uses weighted random selection for table count, biasing toward two-table queries to match typical workload distributions, and all multi-table queries include the central fact table to reflect the star-schema topology of the benchmark database.
+Not every environment has access to an LLM, and not every experiment needs one. For quick iteration, unit testing, and baseline comparisons, the framework includes a deterministic synthetic generator. It works from hardcoded table definitions and uses weighted random sampling to decide how many tables each query involves, biasing toward two-table queries to match the star-schema structure of the benchmark database. The synthetic generator is fast, fully reproducible, and guaranteed to produce valid queries, but it cannot match the structural richness of LLM output.
 
-Table~\ref{tab:gen_comparison} compares the characteristics of queries produced by the two generation approaches.
+Table~\ref{tab:gen_comparison} compares the two approaches side by side.
 
 \begin{table}[htbp]
 \centering
-\caption{Comparison of LLM-based and synthetic query generation approaches.}
+\caption{LLM-based versus synthetic query generation.}
 \label{tab:gen_comparison}
 \begin{tabular}{|l|c|c|}
 \hline
@@ -144,10 +148,3 @@ Reproducibility & Non-deterministic & Fully deterministic \\
 \hline
 \end{tabular}
 \end{table}
-
-The LLM-based generator produces higher-quality workloads with greater diversity, while the synthetic generator provides a deterministic, zero-dependency fallback. In practice, the LLM-based generator is recommended for final experiments, while the synthetic generator serves well for rapid development and testing.
-
-
-\section{Summary}
-
-This chapter presented the detailed approach for generating SQL query workloads using large language models. The key contributions include a structured prompt engineering strategy that achieves high validation pass rates, a four-layer validation pipeline that ensures only well-formed and schema-compatible queries enter the training pipeline, a diversity hint rotation mechanism that prevents mode collapse in generated workloads, and a deterministic synthetic generator for testing environments. The next chapter describes how these generated queries are labeled, encoded, and used to train the MSCN cardinality estimator through active learning.

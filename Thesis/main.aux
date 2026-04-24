@@ -18,6 +18,7 @@
 \@writefile{toc}{\contentsline {section}{\numberline {1.1}Problem Statement}{1}{section.1.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {1.2}Proposed Approach}{1}{section.1.2}\protected@file@percent }
 \citation{DBLP:journals/pvldb/WangQWWZ21}
+\citation{DBLP:journals/corr/abs-2512-20271}
 \@writefile{toc}{\contentsline {section}{\numberline {1.3}Contributions}{2}{section.1.3}\protected@file@percent }
 \citation{DBLP:conf/cidr/KipfKRLBK19}
 \@writefile{toc}{\contentsline {chapter}{\numberline {2}Background}{3}{chapter.2}\protected@file@percent }
@@ -36,12 +37,7 @@
 \citation{DBLP:journals/corr/abs-2503-24228}
 \@writefile{toc}{\contentsline {section}{\numberline {2.6}Active Learning for Data Efficiency}{6}{section.2.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {2.7}Data Diversity, Personas, and KL Divergence}{6}{section.2.7}\protected@file@percent }
-\citation{DBLP:conf/cidr/KipfKRLBK19}
-\citation{DBLP:journals/pvldb/WangQWWZ21}
-\citation{DBLP:journals/pvldb/SchmidtLBN25}
-\citation{DBLP:journals/tnn/LiWCJDO25}
 \@writefile{toc}{\contentsline {section}{\numberline {2.8}Local Model Hosting for Reproducibility}{7}{section.2.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {2.9}Summary and Motivation}{7}{section.2.9}\protected@file@percent }
 \citation{DBLP:conf/cidr/KipfKRLBK19}
 \citation{DBLP:journals/pvldb/WangQWWZ21}
 \@writefile{toc}{\contentsline {chapter}{\numberline {3}Related Work}{8}{chapter.3}\protected@file@percent }
@@ -73,47 +69,51 @@
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
 \newlabel{chap:approach}{{4}{12}{Approach}{chapter.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.1}Benefits of the Proposed Framework}{12}{section.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.2}System Architecture}{13}{section.4.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces High-level system architecture showing the end-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop indicates iterative refinement through multiple active learning rounds.}}{13}{figure.caption.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.1}Why This Framework}{12}{section.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.2}System Architecture}{12}{section.4.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces End-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop represents the iterative active learning cycle.}}{13}{figure.caption.5}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{fig:system_overview}{{4.1}{13}{High-level system architecture showing the end-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop indicates iterative refinement through multiple active learning rounds}{figure.caption.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.3}Pipeline Overview}{13}{section.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.4}Summary}{14}{section.4.4}\protected@file@percent }
+\newlabel{fig:system_overview}{{4.1}{13}{End-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop represents the iterative active learning cycle}{figure.caption.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.3}Pipeline Walkthrough}{13}{section.4.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {chapter}{\numberline {5}Query Generation Approach}{15}{chapter.5}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
 \newlabel{chap:query_generation}{{5}{15}{Query Generation Approach}{chapter.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}LLM-Based Query Generation}{15}{section.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}Why Use a Language Model}{15}{section.5.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {5.2}Prompt Design}{15}{section.5.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Structure of the LLM prompt template, consisting of five hierarchically organized components that guide the model from context understanding to constrained output generation.}}{16}{figure.caption.6}\protected@file@percent }
-\newlabel{fig:prompt_structure}{{5.1}{16}{Structure of the LLM prompt template, consisting of five hierarchically organized components that guide the model from context understanding to constrained output generation}{figure.caption.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.3}Diversity and Batch Generation}{17}{section.5.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Five-part prompt template. The upper components establish what the model knows; the lower components constrain what it is allowed to produce.}}{16}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:prompt_structure}{{5.1}{16}{Five-part prompt template. The upper components establish what the model knows; the lower components constrain what it is allowed to produce}{figure.caption.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.3}Keeping the Workload Diverse}{17}{section.5.3}\protected@file@percent }
 \@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces LLM-Based Query Generation}}{17}{algorithm.1}\protected@file@percent }
 \newlabel{alg:batch_generation}{{1}{17}{LLM-Based Query Generation}{algorithm.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.4}Multi-Layer Validation Pipeline}{18}{section.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.5}Synthetic Query Generator}{18}{section.5.5}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Comparison of LLM-based and synthetic query generation approaches.}}{18}{table.caption.8}\protected@file@percent }
-\newlabel{tab:gen_comparison}{{5.1}{18}{Comparison of LLM-based and synthetic query generation approaches}{table.caption.8}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Multi-layer validation pipeline for LLM-generated queries. Each layer progressively filters invalid queries, with rejected queries logged for analysis.}}{19}{figure.caption.7}\protected@file@percent }
-\newlabel{fig:validation_pipeline}{{5.2}{19}{Multi-layer validation pipeline for LLM-generated queries. Each layer progressively filters invalid queries, with rejected queries logged for analysis}{figure.caption.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.6}Summary}{20}{section.5.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{\numberline {6}Training Approach}{21}{chapter.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.4}Filtering Out Bad Queries}{17}{section.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.5}Synthetic Fallback}{18}{section.5.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces LLM-based versus synthetic query generation.}}{18}{table.caption.8}\protected@file@percent }
+\newlabel{tab:gen_comparison}{{5.1}{18}{LLM-based versus synthetic query generation}{table.caption.8}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Four-layer validation pipeline. Cheap structural checks run first, expensive schema lookups run last. Queries rejected at any stage are logged for post-hoc analysis.}}{19}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:validation_pipeline}{{5.2}{19}{Four-layer validation pipeline. Cheap structural checks run first, expensive schema lookups run last. Queries rejected at any stage are logged for post-hoc analysis}{figure.caption.7}{}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {6}Training Approach}{20}{chapter.6}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:training_approach}{{6}{21}{Training Approach}{chapter.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.1}Database Labeling}{21}{section.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.2}Feature Extraction and Bitmap Generation}{21}{section.6.2}\protected@file@percent }
+\newlabel{chap:training_approach}{{6}{20}{Training Approach}{chapter.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}Database Labeling}{20}{section.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}Feature Extraction and Bitmap Generation}{20}{section.6.2}\protected@file@percent }
 \citation{DBLP:conf/cidr/KipfKRLBK19}
-\@writefile{toc}{\contentsline {section}{\numberline {6.3}Multi-Set Convolutional Network}{22}{section.6.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces Complete MSCN architecture. Each query component (tables, predicates, joins) passes through a dedicated two-layer neural network with dropout regularization, followed by average pooling. The pooled representations are combined and processed through an output layer to produce a normalized cardinality estimate $\hat  {y} \in [0, 1]$.}}{23}{figure.caption.9}\protected@file@percent }
-\newlabel{fig:mscn_architecture}{{6.1}{23}{Complete MSCN architecture. Each query component (tables, predicates, joins) passes through a dedicated two-layer neural network with dropout regularization, followed by average pooling. The pooled representations are combined and processed through an output layer to produce a normalized cardinality estimate $\hat {y} \in [0, 1]$}{figure.caption.9}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.4}Label Normalization and Loss Function}{24}{section.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.3}Multi-Set Convolutional Network}{21}{section.6.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces MSCN architecture. Three independent neural modules process tables, predicates, and joins. Their pooled representations are concatenated and mapped to a cardinality estimate in $[0, 1]$.}}{22}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:mscn_architecture}{{6.1}{22}{MSCN architecture. Three independent neural modules process tables, predicates, and joins. Their pooled representations are concatenated and mapped to a cardinality estimate in $[0, 1]$}{figure.caption.9}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.4}Normalization and Loss}{23}{section.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.5}Active Learning}{24}{section.6.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5.1}The Core Idea}{24}{subsection.6.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5.2}Acquisition Strategies}{24}{subsection.6.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Random Sampling.}{24}{paragraph*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Uncertainty Sampling.}{24}{paragraph*.11}\protected@file@percent }
 \citation{gal2016dropout}
-\@writefile{toc}{\contentsline {section}{\numberline {6.5}Active Learning Framework}{25}{section.6.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.6}Summary}{25}{section.6.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Monte Carlo Dropout.}{25}{paragraph*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5.3}The Training Loop}{25}{subsection.6.5.3}\protected@file@percent }
 \@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces Active Learning for Cardinality Estimation}}{26}{algorithm.2}\protected@file@percent }
 \newlabel{alg:active_learning_full}{{2}{26}{Active Learning for Cardinality Estimation}{algorithm.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5.4}Why Active Learning Matters Here}{26}{subsection.6.5.4}\protected@file@percent }
 \citation{DBLP:conf/cidr/KipfKRLBK19}
 \@writefile{toc}{\contentsline {chapter}{\numberline {7}Experimental Evaluation}{27}{chapter.7}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
@@ -121,56 +121,55 @@
 \newlabel{chap:experiments}{{7}{27}{Experimental Evaluation}{chapter.7}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7.1}Experimental Setup}{27}{section.7.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {7.2}Query Generation Analysis}{27}{section.7.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7.1}{\ignorespaces Entity-relationship diagram of the IMDB database schema. The \texttt  {title\_principals} table acts as a central junction connecting titles to people, while \texttt  {title\_ratings} provides aggregate user feedback per title. These relationships define the valid join paths for generated queries.}}{28}{figure.caption.10}\protected@file@percent }
-\newlabel{fig:imdb_schema}{{7.1}{28}{Entity-relationship diagram of the IMDB database schema. The \texttt {title\_principals} table acts as a central junction connecting titles to people, while \texttt {title\_ratings} provides aggregate user feedback per title. These relationships define the valid join paths for generated queries}{figure.caption.10}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces Experimental configuration parameters.}}{28}{table.caption.11}\protected@file@percent }
-\newlabel{tab:exp_config}{{7.1}{28}{Experimental configuration parameters}{table.caption.11}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.2}{\ignorespaces Structural feature distributions across the generated workload. The balanced coverage of different table counts, join complexities, and predicate counts confirms that the diversity hint mechanism prevents the LLM from converging on a narrow subset of query patterns.}}{29}{figure.caption.12}\protected@file@percent }
-\newlabel{fig:structural_analysis}{{7.2}{29}{Structural feature distributions across the generated workload. The balanced coverage of different table counts, join complexities, and predicate counts confirms that the diversity hint mechanism prevents the LLM from converging on a narrow subset of query patterns}{figure.caption.12}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.3}{\ignorespaces Query validation success rates across the four filtering layers. The high pass rate at each stage demonstrates the effectiveness of the prompt engineering constraints in guiding the LLM toward valid query structures.}}{29}{figure.caption.13}\protected@file@percent }
-\newlabel{fig:validation_results}{{7.3}{29}{Query validation success rates across the four filtering layers. The high pass rate at each stage demonstrates the effectiveness of the prompt engineering constraints in guiding the LLM toward valid query structures}{figure.caption.13}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.4}{\ignorespaces Distribution of table count per query. The weighted mix of single-table, two-table, and three-table queries ensures coverage of both simple selections and complex multi-way joins.}}{30}{figure.caption.14}\protected@file@percent }
-\newlabel{fig:tables_distribution}{{7.4}{30}{Distribution of table count per query. The weighted mix of single-table, two-table, and three-table queries ensures coverage of both simple selections and complex multi-way joins}{figure.caption.14}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.5}{\ignorespaces Distribution of predicate count per query. The majority of queries contain one to three predicates, reflecting a realistic range of filter complexities.}}{30}{figure.caption.14}\protected@file@percent }
-\newlabel{fig:predicates_distribution}{{7.5}{30}{Distribution of predicate count per query. The majority of queries contain one to three predicates, reflecting a realistic range of filter complexities}{figure.caption.14}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.1}{\ignorespaces Entity-relationship diagram of the IMDB database schema. The \texttt  {title\_principals} table acts as a central junction connecting titles to people, while \texttt  {title\_ratings} provides aggregate user feedback per title. These relationships define the valid join paths for generated queries.}}{28}{figure.caption.13}\protected@file@percent }
+\newlabel{fig:imdb_schema}{{7.1}{28}{Entity-relationship diagram of the IMDB database schema. The \texttt {title\_principals} table acts as a central junction connecting titles to people, while \texttt {title\_ratings} provides aggregate user feedback per title. These relationships define the valid join paths for generated queries}{figure.caption.13}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces Experimental configuration parameters.}}{28}{table.caption.14}\protected@file@percent }
+\newlabel{tab:exp_config}{{7.1}{28}{Experimental configuration parameters}{table.caption.14}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.2}{\ignorespaces Structural feature distributions across the generated workload. The balanced coverage of different table counts, join complexities, and predicate counts confirms that the diversity hint mechanism prevents the LLM from converging on a narrow subset of query patterns.}}{29}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:structural_analysis}{{7.2}{29}{Structural feature distributions across the generated workload. The balanced coverage of different table counts, join complexities, and predicate counts confirms that the diversity hint mechanism prevents the LLM from converging on a narrow subset of query patterns}{figure.caption.15}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.3}{\ignorespaces Query validation success rates across the four filtering layers. The high pass rate at each stage demonstrates the effectiveness of the prompt engineering constraints in guiding the LLM toward valid query structures.}}{29}{figure.caption.16}\protected@file@percent }
+\newlabel{fig:validation_results}{{7.3}{29}{Query validation success rates across the four filtering layers. The high pass rate at each stage demonstrates the effectiveness of the prompt engineering constraints in guiding the LLM toward valid query structures}{figure.caption.16}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.4}{\ignorespaces Distribution of table count per query. The weighted mix of single-table, two-table, and three-table queries ensures coverage of both simple selections and complex multi-way joins.}}{30}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:tables_distribution}{{7.4}{30}{Distribution of table count per query. The weighted mix of single-table, two-table, and three-table queries ensures coverage of both simple selections and complex multi-way joins}{figure.caption.17}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.5}{\ignorespaces Distribution of predicate count per query. The majority of queries contain one to three predicates, reflecting a realistic range of filter complexities.}}{30}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:predicates_distribution}{{7.5}{30}{Distribution of predicate count per query. The majority of queries contain one to three predicates, reflecting a realistic range of filter complexities}{figure.caption.17}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7.3}Active Learning and Model Training Results}{30}{section.7.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7.6}{\ignorespaces Distribution of join conditions per query. Queries with zero joins correspond to single-table queries, while one and two join conditions correspond to two-table and three-table queries, respectively.}}{31}{figure.caption.15}\protected@file@percent }
-\newlabel{fig:joins_distribution}{{7.6}{31}{Distribution of join conditions per query. Queries with zero joins correspond to single-table queries, while one and two join conditions correspond to two-table and three-table queries, respectively}{figure.caption.15}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.7}{\ignorespaces Distribution of true cardinalities ($\log _{10}$ scale). The wide range spanning several orders of magnitude forces the model to learn accurate estimates for both highly selective queries returning few rows and broad queries spanning millions of tuples.}}{31}{figure.caption.16}\protected@file@percent }
-\newlabel{fig:cardinality_dist}{{7.7}{31}{Distribution of true cardinalities ($\log _{10}$ scale). The wide range spanning several orders of magnitude forces the model to learn accurate estimates for both highly selective queries returning few rows and broad queries spanning millions of tuples}{figure.caption.16}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.8}{\ignorespaces Active learning curve showing validation median Q-error versus the number of labeled queries. The steep initial decline demonstrates rapid learning from the first few rounds, while the flattening tail indicates diminishing returns as the model approaches its capacity on the given data.}}{32}{figure.caption.17}\protected@file@percent }
-\newlabel{fig:learning_curves_comparison}{{7.8}{32}{Active learning curve showing validation median Q-error versus the number of labeled queries. The steep initial decline demonstrates rapid learning from the first few rounds, while the flattening tail indicates diminishing returns as the model approaches its capacity on the given data}{figure.caption.17}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.9}{\ignorespaces Training loss curves across active learning rounds. The consistently decreasing trajectory demonstrates stable convergence, with each round starting from a better baseline than the previous one due to the expanded and more informative training set.}}{32}{figure.caption.18}\protected@file@percent }
-\newlabel{fig:training_loss_rounds}{{7.9}{32}{Training loss curves across active learning rounds. The consistently decreasing trajectory demonstrates stable convergence, with each round starting from a better baseline than the previous one due to the expanded and more informative training set}{figure.caption.18}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.10}{\ignorespaces Predicted vs.\ actual cardinality on a log-log scale. The concentration of points along the diagonal indicates that the MSCN model produces well-calibrated estimates across the full cardinality range, from selective single-table queries to large multi-table joins.}}{33}{figure.caption.19}\protected@file@percent }
-\newlabel{fig:pred_vs_actual}{{7.10}{33}{Predicted vs.\ actual cardinality on a log-log scale. The concentration of points along the diagonal indicates that the MSCN model produces well-calibrated estimates across the full cardinality range, from selective single-table queries to large multi-table joins}{figure.caption.19}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.11}{\ignorespaces Cumulative distribution function of Q-errors. The steep rise at low Q-error values indicates that the majority of queries are estimated within a factor of 2--5 of their true cardinality.}}{34}{figure.caption.20}\protected@file@percent }
-\newlabel{fig:qerror_cdf}{{7.11}{34}{Cumulative distribution function of Q-errors. The steep rise at low Q-error values indicates that the majority of queries are estimated within a factor of 2--5 of their true cardinality}{figure.caption.20}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.12}{\ignorespaces Q-error box plots per active learning round. The narrowing boxes and decreasing medians demonstrate how each round improves estimation accuracy.}}{34}{figure.caption.20}\protected@file@percent }
-\newlabel{fig:qerror_boxplot}{{7.12}{34}{Q-error box plots per active learning round. The narrowing boxes and decreasing medians demonstrate how each round improves estimation accuracy}{figure.caption.20}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.6}{\ignorespaces Distribution of join conditions per query. Queries with zero joins correspond to single-table queries, while one and two join conditions correspond to two-table and three-table queries, respectively.}}{31}{figure.caption.18}\protected@file@percent }
+\newlabel{fig:joins_distribution}{{7.6}{31}{Distribution of join conditions per query. Queries with zero joins correspond to single-table queries, while one and two join conditions correspond to two-table and three-table queries, respectively}{figure.caption.18}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.7}{\ignorespaces Distribution of true cardinalities ($\log _{10}$ scale). The wide range spanning several orders of magnitude forces the model to learn accurate estimates for both highly selective queries returning few rows and broad queries spanning millions of tuples.}}{31}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:cardinality_dist}{{7.7}{31}{Distribution of true cardinalities ($\log _{10}$ scale). The wide range spanning several orders of magnitude forces the model to learn accurate estimates for both highly selective queries returning few rows and broad queries spanning millions of tuples}{figure.caption.19}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.8}{\ignorespaces Active learning curve showing validation median Q-error versus the number of labeled queries. The steep initial decline demonstrates rapid learning from the first few rounds, while the flattening tail indicates diminishing returns as the model approaches its capacity on the given data.}}{32}{figure.caption.20}\protected@file@percent }
+\newlabel{fig:learning_curves_comparison}{{7.8}{32}{Active learning curve showing validation median Q-error versus the number of labeled queries. The steep initial decline demonstrates rapid learning from the first few rounds, while the flattening tail indicates diminishing returns as the model approaches its capacity on the given data}{figure.caption.20}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.9}{\ignorespaces Training loss curves across active learning rounds. The consistently decreasing trajectory demonstrates stable convergence, with each round starting from a better baseline than the previous one due to the expanded and more informative training set.}}{32}{figure.caption.21}\protected@file@percent }
+\newlabel{fig:training_loss_rounds}{{7.9}{32}{Training loss curves across active learning rounds. The consistently decreasing trajectory demonstrates stable convergence, with each round starting from a better baseline than the previous one due to the expanded and more informative training set}{figure.caption.21}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.10}{\ignorespaces Predicted vs.\ actual cardinality on a log-log scale. The concentration of points along the diagonal indicates that the MSCN model produces well-calibrated estimates across the full cardinality range, from selective single-table queries to large multi-table joins.}}{33}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:pred_vs_actual}{{7.10}{33}{Predicted vs.\ actual cardinality on a log-log scale. The concentration of points along the diagonal indicates that the MSCN model produces well-calibrated estimates across the full cardinality range, from selective single-table queries to large multi-table joins}{figure.caption.22}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.11}{\ignorespaces Cumulative distribution function of Q-errors. The steep rise at low Q-error values indicates that the majority of queries are estimated within a factor of 2--5 of their true cardinality.}}{34}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:qerror_cdf}{{7.11}{34}{Cumulative distribution function of Q-errors. The steep rise at low Q-error values indicates that the majority of queries are estimated within a factor of 2--5 of their true cardinality}{figure.caption.23}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.12}{\ignorespaces Q-error box plots per active learning round. The narrowing boxes and decreasing medians demonstrate how each round improves estimation accuracy.}}{34}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:qerror_boxplot}{{7.12}{34}{Q-error box plots per active learning round. The narrowing boxes and decreasing medians demonstrate how each round improves estimation accuracy}{figure.caption.23}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7.4}Labeling Efficiency Analysis}{34}{section.7.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {7.5}Comparison with PostgreSQL Optimizer}{34}{section.7.5}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7.13}{\ignorespaces Q-error statistics across active learning rounds. The consistent decrease in all percentile metrics confirms that active query selection improves not only typical-case accuracy but also tail-end performance on the most challenging queries.}}{35}{figure.caption.21}\protected@file@percent }
-\newlabel{fig:qerror_stats}{{7.13}{35}{Q-error statistics across active learning rounds. The consistent decrease in all percentile metrics confirms that active query selection improves not only typical-case accuracy but also tail-end performance on the most challenging queries}{figure.caption.21}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.6}Pipeline Summary and Discussion}{35}{section.7.6}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7.14}{\ignorespaces Labeling efficiency comparison. The active learning approach achieves competitive accuracy with significantly fewer labeled queries than a fully supervised baseline, demonstrating that intelligent query selection reduces the dominant cost factor in the pipeline.}}{36}{figure.caption.22}\protected@file@percent }
-\newlabel{fig:labeling_efficiency}{{7.14}{36}{Labeling efficiency comparison. The active learning approach achieves competitive accuracy with significantly fewer labeled queries than a fully supervised baseline, demonstrating that intelligent query selection reduces the dominant cost factor in the pipeline}{figure.caption.22}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.15}{\ignorespaces Labeling success rate across the pipeline. Queries that exceed the database timeout are assigned fallback cardinalities. The high success rate confirms that the generated queries are overwhelmingly executable within the configured time limits.}}{37}{figure.caption.23}\protected@file@percent }
-\newlabel{fig:labeling_rate}{{7.15}{37}{Labeling success rate across the pipeline. Queries that exceed the database timeout are assigned fallback cardinalities. The high success rate confirms that the generated queries are overwhelmingly executable within the configured time limits}{figure.caption.23}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.16}{\ignorespaces Q-error CDF comparing the MSCN model against PostgreSQL's native estimator. A curve shifted further left indicates better estimation accuracy.}}{37}{figure.caption.24}\protected@file@percent }
-\newlabel{fig:pg_cdf}{{7.16}{37}{Q-error CDF comparing the MSCN model against PostgreSQL's native estimator. A curve shifted further left indicates better estimation accuracy}{figure.caption.24}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.17}{\ignorespaces Predicted vs.\ actual scatter comparing MSCN and PostgreSQL. Points closer to the diagonal represent more accurate estimates.}}{37}{figure.caption.24}\protected@file@percent }
-\newlabel{fig:pg_scatter}{{7.17}{37}{Predicted vs.\ actual scatter comparing MSCN and PostgreSQL. Points closer to the diagonal represent more accurate estimates}{figure.caption.24}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.18}{\ignorespaces Pipeline summary dashboard aggregating key metrics from all stages. This consolidated view enables rapid assessment of the entire experimental run, from data generation quality through model training convergence to final estimation accuracy.}}{38}{figure.caption.25}\protected@file@percent }
-\newlabel{fig:pipeline_summary}{{7.18}{38}{Pipeline summary dashboard aggregating key metrics from all stages. This consolidated view enables rapid assessment of the entire experimental run, from data generation quality through model training convergence to final estimation accuracy}{figure.caption.25}{}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {8}Conclusion}{40}{chapter.8}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7.13}{\ignorespaces Q-error statistics across active learning rounds. The consistent decrease in all percentile metrics confirms that active query selection improves not only typical-case accuracy but also tail-end performance on the most challenging queries.}}{35}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:qerror_stats}{{7.13}{35}{Q-error statistics across active learning rounds. The consistent decrease in all percentile metrics confirms that active query selection improves not only typical-case accuracy but also tail-end performance on the most challenging queries}{figure.caption.24}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.6}Discussion}{35}{section.7.6}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7.14}{\ignorespaces Labeling efficiency comparison. The active learning approach achieves competitive accuracy with significantly fewer labeled queries than a fully supervised baseline, demonstrating that intelligent query selection reduces the dominant cost factor in the pipeline.}}{36}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:labeling_efficiency}{{7.14}{36}{Labeling efficiency comparison. The active learning approach achieves competitive accuracy with significantly fewer labeled queries than a fully supervised baseline, demonstrating that intelligent query selection reduces the dominant cost factor in the pipeline}{figure.caption.25}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.15}{\ignorespaces Labeling success rate across the pipeline. Queries that exceed the database timeout are assigned fallback cardinalities. The high success rate confirms that the generated queries are overwhelmingly executable within the configured time limits.}}{37}{figure.caption.26}\protected@file@percent }
+\newlabel{fig:labeling_rate}{{7.15}{37}{Labeling success rate across the pipeline. Queries that exceed the database timeout are assigned fallback cardinalities. The high success rate confirms that the generated queries are overwhelmingly executable within the configured time limits}{figure.caption.26}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.16}{\ignorespaces Q-error CDF comparing the MSCN model against PostgreSQL's native estimator. A curve shifted further left indicates better estimation accuracy.}}{37}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:pg_cdf}{{7.16}{37}{Q-error CDF comparing the MSCN model against PostgreSQL's native estimator. A curve shifted further left indicates better estimation accuracy}{figure.caption.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.17}{\ignorespaces Predicted vs.\ actual scatter comparing MSCN and PostgreSQL. Points closer to the diagonal represent more accurate estimates.}}{37}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:pg_scatter}{{7.17}{37}{Predicted vs.\ actual scatter comparing MSCN and PostgreSQL. Points closer to the diagonal represent more accurate estimates}{figure.caption.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.18}{\ignorespaces Pipeline summary dashboard. Each panel corresponds to a pipeline stage, making it possible to diagnose bottlenecks and quality issues at a glance.}}{38}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:pipeline_summary}{{7.18}{38}{Pipeline summary dashboard. Each panel corresponds to a pipeline stage, making it possible to diagnose bottlenecks and quality issues at a glance}{figure.caption.28}{}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {8}Conclusion}{39}{chapter.8}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:conclusion}{{8}{40}{Conclusion}{chapter.8}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {8.1}Summary of Contributions}{40}{section.8.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8.2}Impact and Implications}{40}{section.8.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8.3}Limitations and Future Work}{41}{section.8.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8.4}Final Remarks}{41}{section.8.4}\protected@file@percent }
+\newlabel{chap:conclusion}{{8}{39}{Conclusion}{chapter.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8.1}What We Built and What We Learned}{39}{section.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.2}Limitations}{39}{section.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.3}Directions for Future Work}{40}{section.8.3}\protected@file@percent }
 \bibcite{DBLP:journals/corr/abs-2512-20271}{1}
 \bibcite{gal2016dropout}{2}
 \bibcite{kipf2018learned}{3}
@@ -183,4 +182,4 @@
 \bibcite{DBLP:conf/edbt/RahmanZMCP25}{10}
 \bibcite{DBLP:journals/pvldb/SchmidtLBN25}{11}
 \bibcite{DBLP:journals/pvldb/WangQWWZ21}{12}
-\gdef \@abspage@last{51}
+\gdef \@abspage@last{49}

@@ -3,50 +3,54 @@
 \label{chap:training_approach}
 \pagestyle{plain}
 
-This chapter presents the training methodology for the learned cardinality estimator, encompassing database labeling, feature extraction, the Multi-Set Convolutional Network architecture, active learning strategies, and the evaluation framework. Together, these components transform generated queries into a trained model capable of accurate cardinality prediction.
+Getting from a pile of validated SQL queries to a neural network that estimates cardinalities accurately involves four non-trivial steps: labeling each query with its true row count, encoding the query into a fixed-size tensor the network can digest, training the network itself, and---most importantly---deciding which queries are worth labeling in the first place. This chapter walks through each of these steps, with particular emphasis on the active learning framework that ties them together.
 
 
 \section{Database Labeling}
 
-Ground truth cardinalities are obtained by executing reconstructed \texttt{SELECT COUNT(*)} queries against the target database. Each query's tables, joins, and predicates are assembled into a complete SQL statement and submitted to the database engine. Since generated workloads contain queries of widely varying complexity, some involving expensive multi-table joins over tens of millions of rows, the labeling pipeline enforces per-query timeouts and implements retry logic to ensure that no single query can block the pipeline. Queries that fail after all retries are assigned a fallback cardinality of one, satisfying the log-normalization requirement of the model while allowing the pipeline to continue. All cardinalities are clamped to a minimum of one because the training loss operates in log-space, where $\log(0)$ is undefined.
+Every supervised model needs labels. In our setting a label is the true cardinality of a query---the number of rows it returns. Obtaining that number means actually running the query: reconstructing a \texttt{SELECT COUNT(*)} statement from the query's tables, joins, and predicates, submitting it to PostgreSQL, and recording the result.
 
-The labeling stage is the most computationally expensive part of the pipeline. A single query on the IMDB dataset can take several seconds to execute, and labeling thousands of queries may require hours of database time. This cost is the primary motivation for active learning: by intelligently selecting which queries to label, the framework achieves strong model performance while executing only a fraction of the total query pool.
+This sounds straightforward, but at scale it is the dominant bottleneck of the entire pipeline. A single three-table join over tens of millions of rows can take seconds. Multiply that by a few thousand queries and the labeling stage alone can consume hours of compute. Some queries never finish at all: they hit pathological join orderings or blow up intermediate result sizes, making them impractical to execute within any reasonable time budget.
+
+The pipeline handles these cases pragmatically. Each query runs under a timeout. If it does not finish, it is retried once with a longer deadline. If it still fails, it receives a fallback cardinality of one, the smallest value that keeps the log-scale normalization well-defined. This fallback introduces a small amount of noise into the training data, but in practice the fraction of queries that reach it is low enough that the model's overall accuracy is not materially affected.
+
+The expense of labeling is the single strongest argument for active learning. If every label costs real compute, then choosing which queries to label is not just a nice optimization---it is the difference between a pipeline that finishes overnight and one that runs for days.
 
 
 \section{Feature Extraction and Bitmap Generation}
 
-The MSCN architecture requires fixed-size tensor inputs, but queries have variable numbers of tables, predicates, and joins. The feature extraction stage addresses this through set-based encoding with zero-padding and masking.
+The MSCN architecture expects three fixed-size tensors as input---one for tables, one for predicates, one for joins---but real queries have variable numbers of each. A single-table query has one table entry and zero joins; a three-table query with five filters has three table entries, two joins, and five predicates. The encoding stage bridges this gap through zero-padding and masking.
 
-Before encoding any queries, the system builds encoding vocabularies from the complete query pool. A table vocabulary provides one-hot encodings over all unique table entries, a column vocabulary covers all unique predicate columns, an operator vocabulary covers the observed comparison operators, and a join vocabulary covers all unique join conditions. These vocabularies are sorted alphabetically to ensure deterministic encoding across runs.
+First, the system scans every query in the pool and builds four sorted vocabularies: one mapping each unique table name to a one-hot index, one for predicate columns, one for comparison operators, and one for join conditions. Sorting alphabetically guarantees that the same schema always produces the same encoding, regardless of the order in which queries were generated.
 
-Each query is then encoded into three sets of feature vectors. For each table $t_i$ in the query, the feature vector concatenates the table's one-hot encoding with a bitmap vector that captures the selectivity of the query's predicates on a pre-sampled set of rows:
+Each table entry in a query is encoded by concatenating its one-hot vector with a bitmap feature:
 
 \begin{equation}
 \mathbf{s}_i = [\text{onehot}(t_i) \| \text{bitmap}(t_i)] \in \mathbb{R}^{|T| + n_{\text{samples}}}
 \end{equation}
 
-For each predicate $(c_j, op_j, v_j)$, the feature vector concatenates a column one-hot vector, an operator one-hot vector, and the normalized predicate value:
+The bitmap is where the encoding gets interesting. At startup the pipeline samples a fixed set of rows from each table---typically one thousand---and holds them in memory. For each query, the system checks which sampled rows satisfy the query's filter predicates and sets the corresponding bit to one. The result is a compact binary vector that tells the model how selective a query's filters are on a small but representative slice of the actual data. Without this signal the model would have to infer selectivity purely from the query structure, which is far harder.
+
+Each predicate $(c_j, op_j, v_j)$ is encoded as:
 
 \begin{equation}
 \mathbf{p}_j = [\text{onehot}(c_j) \| \text{onehot}(op_j) \| \text{norm}(v_j)] \in \mathbb{R}^{|C| + |O| + 1}
 \end{equation}
 
-where the value is normalized using min-max scaling: $\text{norm}(v) = \frac{v - v_{\min}}{v_{\max} - v_{\min}}$. Each join condition $j_k$ is simply represented as its one-hot encoding $\mathbf{j}_k = \text{onehot}(j_k) \in \mathbb{R}^{|J|}$.
+where the predicate value is min-max normalized so that all values fall between zero and one. Join conditions are simply one-hot encoded: $\mathbf{j}_k = \text{onehot}(j_k) \in \mathbb{R}^{|J|}$.
 
-Since queries have variable numbers of components, each set is padded to the maximum observed size and binary masks are generated to indicate which positions contain real data versus padding:
+To handle the variable sizes, every query's table, predicate, and join tensors are padded to the maximum observed length and paired with a binary mask:
 
 \begin{equation}
-\text{mask}(i) = \begin{cases} 1 & \text{if position } i \text{ contains real data} \\ 0 & \text{if position } i \text{ is padding} \end{cases}
+\text{mask}(i) = \begin{cases} 1 & \text{if position } i \text{ is a real entry} \\ 0 & \text{if position } i \text{ is padding} \end{cases}
 \end{equation}
 
-The masks are used during the mean pooling operation to compute averages only over non-padded positions, preventing dilution of the learned representations.
-
-The bitmap features deserve special attention, as they are the mechanism through which the model gains awareness of the underlying data distribution. At pipeline initialization, a fixed set of rows is randomly sampled from each table and materialized in memory. For each query, the system evaluates which of these sampled rows satisfy the query's filter predicates on each table, producing a binary vector where each bit indicates whether the corresponding sampled row passes the filter. This approach offers fixed dimensionality regardless of table size, composability across multi-table queries, and reusability of the same materialized samples for all queries in the workload.
+The masks ensure that the downstream pooling layers average only over real entries, not over the zeros that were inserted to make the tensors rectangular.
 
 
 \section{Multi-Set Convolutional Network}
 
-The MSCN architecture, proposed by Kipf et al.~\cite{DBLP:conf/cidr/KipfKRLBK19}, treats a SQL query as a composition of three independent sets---tables with bitmaps, predicates, and joins---each processed through set-specific neural modules before being combined for the final prediction. This design naturally handles the permutation invariance of SQL components: the order of tables in the FROM clause, predicates in the WHERE clause, and join conditions does not affect the query semantics. Figure~\ref{fig:mscn_architecture} illustrates the complete architecture.
+MSCN, introduced by Kipf et al.~\cite{DBLP:conf/cidr/KipfKRLBK19}, processes each of the three query components through its own two-layer neural module, pools the results, and combines them for the final prediction. Figure~\ref{fig:mscn_architecture} shows the full architecture.
 
 \begin{figure}[htbp]
 \centering
@@ -100,11 +104,13 @@ The MSCN architecture, proposed by Kipf et al.~\cite{DBLP:conf/cidr/KipfKRLBK19}
 
 \end{tikzpicture}%
 }
-\caption{Complete MSCN architecture. Each query component (tables, predicates, joins) passes through a dedicated two-layer neural network with dropout regularization, followed by average pooling. The pooled representations are combined and processed through an output layer to produce a normalized cardinality estimate $\hat{y} \in [0, 1]$.}
+\caption{MSCN architecture. Three independent neural modules process tables, predicates, and joins. Their pooled representations are concatenated and mapped to a cardinality estimate in $[0, 1]$.}
 \label{fig:mscn_architecture}
 \end{figure}
 
-Each set module processes its input through a two-layer MLP with ReLU activations and dropout regularization. The first layer projects the input features to a hidden dimension $h$, and the second layer refines the representation:
+The design exploits a fundamental property of SQL: the meaning of a query does not change if the tables in the FROM clause or the predicates in the WHERE clause are reordered. Processing each set through a shared-weight module followed by mean pooling makes the network invariant to such permutations, which is exactly the right inductive bias for this problem.
+
+Within each module, the first layer projects the input to a hidden dimension $h$ and the second refines it:
 
 \begin{equation}
 \mathbf{h}_i^{(1)} = \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_1 \mathbf{x}_i + \mathbf{b}_1\right), p\right)
@@ -114,61 +120,85 @@ Each set module processes its input through a two-layer MLP with ReLU activation
 \mathbf{h}_i^{(2)} = \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_2 \mathbf{h}_i^{(1)} + \mathbf{b}_2\right), p\right)
 \end{equation}
 
-The masked mean pooling operation then aggregates the set elements while respecting the padding mask, computing the average only over positions containing real data:
+The masked mean pool then averages only over the real entries, ignoring padding:
 
 \begin{equation}
 \mathbf{h}_{\text{pool}} = \frac{\sum_{i=1}^{n} m_i \cdot \mathbf{h}_i^{(2)}}{\sum_{i=1}^{n} m_i}
 \end{equation}
 
-The concatenated pooled representations from all three modules pass through an output network that produces the final normalized cardinality estimate:
+The three pooled vectors are concatenated into a single $3h$-dimensional representation and passed through an output network with sigmoid activation:
 
 \begin{equation}
 \hat{y} = \sigma\left(\mathbf{W}_{\text{out2}} \cdot \text{Dropout}\left(\text{ReLU}\left(\mathbf{W}_{\text{out1}} [\mathbf{h}_{\text{sample}} \| \mathbf{h}_{\text{pred}} \| \mathbf{h}_{\text{join}}] + \mathbf{b}_{\text{out1}}\right)\right) + \mathbf{b}_{\text{out2}}\right)
 \end{equation}
 
-The sigmoid activation constrains the output to $[0, 1]$, representing a normalized cardinality estimate.
+The sigmoid squashes the output to $[0, 1]$, representing the cardinality as a fraction of the observed range.
 
 
-\section{Label Normalization and Loss Function}
+\section{Normalization and Loss}
 
-True cardinalities span many orders of magnitude, from single-digit counts to tens of millions. Passing raw integer values to the loss function would cause catastrophic gradient imbalances, as the model would be dominated by large-cardinality queries. We normalize labels using log-scale min-max normalization:
+True cardinalities range from one to tens of millions. Training on raw counts would be disastrous: a single query returning ten million rows would dominate every gradient update, and the model would never learn to distinguish between a query returning fifty rows and one returning five hundred. Log-scale min-max normalization compresses this range into $[0, 1]$:
 
 \begin{equation}
 y_{\text{norm}} = \frac{\log(y) - \log_{\min}}{\log_{\max} - \log_{\min}}
 \end{equation}
 
-where $\log_{\min}$ and $\log_{\max}$ are the minimum and maximum log-cardinalities in the training set. At inference time, predictions are unnormalized by inverting this transformation:
+At inference time the inverse transformation recovers the actual predicted cardinality:
 
 \begin{equation}
 \hat{y}_{\text{actual}} = \exp\left(\hat{y}_{\text{norm}} \cdot (\log_{\max} - \log_{\min}) + \log_{\min}\right)
 \end{equation}
 
-We use Q-error as both the training loss and the evaluation metric. Q-error is the standard measure for cardinality estimation quality, defined as:
+We train and evaluate with Q-error, the standard metric in cardinality estimation:
 
 \begin{equation}
 Q(p, a) = \max\left(\frac{p}{a}, \frac{a}{p}\right)
 \end{equation}
 
-where $p$ is the predicted cardinality and $a$ is the actual cardinality. Q-error possesses two desirable properties: it is symmetric, meaning that overestimation and underestimation by the same factor yield the same error, and it is scale-invariant, treating a factor-of-two error identically whether the true cardinality is one hundred or one million. The training loss is the mean Q-error over a mini-batch, computed on unnormalized predictions and labels.
+A Q-error of one means a perfect estimate. A Q-error of ten means the prediction is off by a factor of ten, whether it overestimates or underestimates. This symmetry is important: a query optimizer cares about the magnitude of the error, not its direction. Q-error is also scale-invariant---being wrong by a factor of two carries the same penalty whether the true cardinality is a hundred or a million.
 
 
-\section{Active Learning Framework}
+\section{Active Learning}
 
-Active learning addresses the central question of this work: given a fixed labeling budget, which queries should be labeled to maximize model performance? Formally, let $\mathcal{U} = \{q_1, q_2, \ldots, q_N\}$ be the unlabeled query pool, let $\mathcal{L} \subset \mathcal{U}$ be the current labeled set with $|\mathcal{L}| \ll |\mathcal{U}|$, and let $f_\theta$ be the MSCN model trained on $\mathcal{L}$. The goal is to select a batch $\mathcal{B} \subset \mathcal{U} \setminus \mathcal{L}$ of size $k$ that maximizes the improvement in $f_\theta$'s performance on a held-out validation set $\mathcal{V}$. The selection is guided by an acquisition function $\alpha: \mathcal{U} \setminus \mathcal{L} \rightarrow \mathbb{R}$ that scores each unlabeled query by its estimated informativeness.
+\subsection{The Core Idea}
 
-The framework supports three acquisition strategies. Random sampling serves as the baseline, selecting queries uniformly at random from the unlabeled pool with $\alpha_{\text{random}}(q) = \text{Uniform}[0, 1]$. Despite its simplicity, random sampling provides reasonable performance due to the inherent diversity of the query pool.
+Active learning starts from a simple observation: not all training examples are equally useful. Some queries fall in regions of the feature space that the model already understands well; labeling them adds little new information. Other queries lie near decision boundaries or in poorly explored regions where the model's predictions are unreliable; labeling those queries teaches the model the most per label spent.
 
-Uncertainty sampling selects queries where the model is most uncertain about its prediction. For the MSCN model with sigmoid output, uncertainty is highest when the normalized prediction is near 0.5, yielding $\alpha_{\text{uncertainty}}(q) = -| f_\theta(q) - 0.5 |$. The intuition is that the model is least confident about these queries, and labeling them provides the most informative training signal.
+In our setting the unlabeled pool $\mathcal{U}$ consists of all validated, encoded queries. A small seed set $\mathcal{L}_0$ is drawn at random and labeled by executing the corresponding COUNT queries on the database. The model is trained on $\mathcal{L}_0$, and then the active learning loop begins. At each round the trained model examines every remaining unlabeled query and assigns it a score that reflects how much the model expects to learn from its label. The highest-scoring queries---typically a batch of fixed size---are selected, labeled, and folded into the training set. The model is retrained, and the cycle repeats.
 
-Monte Carlo Dropout~\cite{gal2016dropout} provides a Bayesian approximation of model uncertainty by performing $T$ stochastic forward passes with dropout enabled at inference time. The variance across these predictions serves as the uncertainty estimate:
+The appeal of this approach in the context of cardinality estimation is direct and concrete. Database execution is expensive. Every query that we choose \emph{not} to label saves real computation. If the acquisition function does its job, the model reaches a given accuracy level with far fewer labels than it would need under random selection, translating into hours of saved database time on large schemas.
+
+
+\subsection{Acquisition Strategies}
+
+The acquisition function is the heart of the active learning loop. It answers the question: given the current state of the model, which unlabeled query would be most valuable to label next? We implement three strategies, each embodying a different notion of ``valuable.''
+
+\paragraph{Random Sampling.} The simplest baseline. Queries are selected uniformly at random, with no regard for what the model currently knows or does not know. Random sampling has no computational overhead beyond a random number generator, and it benefits from whatever diversity is already present in the query pool. It serves as the control condition against which the other strategies are measured.
+
+\paragraph{Uncertainty Sampling.} The model's sigmoid output maps to the interval $[0, 1]$. When the output is near the extremes---close to zero or close to one---the model is expressing high confidence in its estimate. When the output hovers near $0.5$, the model is effectively shrugging: it cannot decide whether the true cardinality is large or small. Uncertainty sampling exploits this by selecting the queries whose predictions are closest to $0.5$:
+
+\begin{equation}
+\alpha_{\text{uncertainty}}(q) = -\left| f_\theta(q) - 0.5 \right|
+\end{equation}
+
+The queries with the highest $\alpha$ values (i.e., those closest to $0.5$) are the ones the model is least sure about, and labeling them forces the model to resolve its indecision. This is computationally cheap---a single forward pass through the model suffices---and tends to outperform random sampling noticeably after the first few rounds.
+
+\paragraph{Monte Carlo Dropout.} Gal and Ghahramani~\cite{gal2016dropout} showed that a network with dropout can be interpreted as an approximate Bayesian model. Keeping dropout turned on during inference and running the same query through the network $T$ times produces $T$ slightly different predictions, because each pass randomly zeros out different neurons. If the predictions are tightly clustered, the model is confident. If they are spread out, the model is uncertain.
+
+We quantify this spread as the variance over the $T$ forward passes:
 
 \begin{equation}
 \alpha_{\text{MC}}(q) = \text{Var}\left(\{\hat{y}^{(t)}\}_{t=1}^T\right) = \frac{1}{T} \sum_{t=1}^T \left(\hat{y}^{(t)} - \bar{y}\right)^2
 \end{equation}
 
-where $\bar{y} = \frac{1}{T}\sum_{t=1}^T \hat{y}^{(t)}$ is the mean prediction. Queries with the highest variance are selected, as high variance indicates that the model's predictions are sensitive to which neurons are dropped, implying that the model has not yet learned a stable representation for these queries.
+where $\bar{y} = \frac{1}{T}\sum_{t=1}^T \hat{y}^{(t)}$. Queries with high variance are those where the model's internal representation is fragile---small perturbations to the network produce large swings in the output. These are precisely the queries that would benefit most from having their true labels revealed.
 
-Algorithm~\ref{alg:active_learning_full} presents the complete active learning procedure.
+Monte Carlo dropout is more expensive than plain uncertainty sampling because it requires $T$ forward passes instead of one (we use $T = 25$), but the additional cost is modest compared to the cost of a single database execution. The richer uncertainty signal it provides often translates into better sample efficiency, meaning fewer total labels to reach the same accuracy.
+
+
+\subsection{The Training Loop}
+
+Algorithm~\ref{alg:active_learning_full} lays out the full procedure. Ten percent of the query pool is held out for validation and never enters the training set. From the remaining ninety percent, twenty percent is sampled at random to form the initial labeled set $\mathcal{L}_0$. This seed needs to be large enough for the model to learn a reasonable baseline---too small and the first round of acquisition scores will be noisy and uninformative.
 
 \begin{algorithm}[htbp]
 \caption{Active Learning for Cardinality Estimation}
@@ -189,9 +219,15 @@ Algorithm~\ref{alg:active_learning_full} presents the complete active learning p
 \end{algorithmic}
 \end{algorithm}
 
-The total number of queries labeled across the active learning process is $|\mathcal{L}_{\text{total}}| = \lfloor 0.2 \times |\mathcal{P}| \rfloor + R \times k_{\text{acquire}} + |\mathcal{V}|$, where $|\mathcal{P}|$ is the pool size, $R$ is the number of rounds, $k_{\text{acquire}}$ is the per-round acquisition size, and $|\mathcal{V}|$ is the validation set size. The initial labeled set comprises 20\% of the pool, providing sufficient data for the model to learn a reasonable baseline before active acquisition begins.
+In each round, the model is trained from scratch on all currently labeled data, then evaluated on the held-out validation set to track progress. The acquisition function scores every remaining unlabeled query, and the top $k$ are selected for labeling. Once labeled, they join the training set and the loop advances.
+
+Over the course of several rounds, the training set grows from a random seed into a curated collection that emphasizes the hardest, most informative queries. Early rounds tend to add queries from underrepresented regions of the feature space---unusual join patterns, extreme selectivities, edge cases that the random seed missed. Later rounds zero in on the remaining pockets of uncertainty, progressively tightening the model's estimates.
+
+The total labeling cost is straightforward to compute. Let $N$ be the total query pool and $k$ the per-round batch size. The pipeline labels $\lfloor 0.1 \times N \rfloor$ queries for validation, $\lfloor 0.2 \times 0.9N \rfloor$ for the initial seed, and $R \times k$ across $R$ active learning rounds. Everything else stays unlabeled, representing computation that was never spent.
 
 
-\section{Summary}
+\subsection{Why Active Learning Matters Here}
 
-This chapter presented the complete training approach for the learned cardinality estimator, covering the database labeling process, the set-based query encoding with bitmap features, the MSCN neural network architecture with masked mean pooling, the Q-error loss function, and the active learning framework with three acquisition strategies. The active learning strategies aim to achieve significant improvements in sample efficiency compared to random sampling, reducing the number of expensive database executions needed to train an accurate model. The following chapter presents the experimental evaluation of the complete pipeline.
+Active learning is not new, but the cardinality estimation problem is an unusually good fit for it. Labels are genuinely expensive: each one requires a live database execution, and complex joins can consume significant CPU and I/O resources, so reducing the label count by even thirty or forty percent has a real impact on wall-clock time. At the same time, the query space is vast and unevenly important---a three-table join with rare predicates is far more informative than yet another single-table scan with a common filter, but random sampling treats them equally. An acquisition function that recognizes this asymmetry builds a much more efficient training set.
+
+What makes active learning particularly effective here is that the model's uncertainty signal is reliable. MSCN's sigmoid output and dropout layers provide a meaningful measure of what the model does and does not know. Unlike settings where the model is confidently wrong, the uncertainty estimates in cardinality estimation tend to correlate well with actual prediction error. That correlation is what allows the acquisition function to consistently pick queries that genuinely improve the model, rather than wasting labels on queries the model already handles well.

@@ -251,21 +251,23 @@ To contextualize the MSCN model's accuracy, we compare its cardinality estimates
 \end{figure}
 
 
-\section{Pipeline Summary and Discussion}
+\section{Discussion}
 
-Figure~\ref{fig:pipeline_summary} provides a comprehensive summary dashboard of the full pipeline run, combining key metrics from query generation, labeling, training, and evaluation.
+Figure~\ref{fig:pipeline_summary} shows the full pipeline dashboard, pulling together the key numbers from every stage into one view.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{analysis_pipeline_summary.png}
-\caption{Pipeline summary dashboard aggregating key metrics from all stages. This consolidated view enables rapid assessment of the entire experimental run, from data generation quality through model training convergence to final estimation accuracy.}
+\caption{Pipeline summary dashboard. Each panel corresponds to a pipeline stage, making it possible to diagnose bottlenecks and quality issues at a glance.}
 \label{fig:pipeline_summary}
 \end{figure}
 
-The experimental results demonstrate several important findings. The schema-aware validation pipeline effectively filters invalid LLM-generated queries, with the majority passing all validation layers. The structural feature distributions confirm that the diversity hint rotation mechanism successfully prevents mode collapse during generation, producing a balanced mix of query complexities.
+A few observations stand out. The validation pipeline rejects only a small fraction of LLM-generated queries, which confirms that the prompt constraints are doing their job. The structural distributions---table counts, join counts, predicate counts---are well spread rather than clustered around a single pattern, evidence that the diversity hints prevent the LLM from falling into repetitive generation.
 
-The generated workload covers cardinalities spanning multiple orders of magnitude, which is essential for training a generalizable cardinality estimator. The active learning curves show that model accuracy improves steadily with each round, confirming that intelligent query selection substantially reduces the number of expensive database executions required for training.
+The cardinality distribution spans several orders of magnitude, from queries returning a handful of rows to queries returning millions. That breadth is important: a model trained only on mid-range cardinalities would struggle with the extremes, and extremes are precisely where estimation errors cause the most damage to query plans.
 
-The predicted versus actual scatter plot demonstrates good model calibration across the full cardinality range. The training loss curves confirm stable convergence within each round, with each subsequent round benefiting from the expanded training set. The comparison with PostgreSQL's native optimizer provides valuable context for the MSCN model's performance, situating the learned approach relative to the established baseline used in production database systems.
+The learning curves tell the clearest story about active learning. Accuracy improves with each round, and the improvement is front-loaded---the first few rounds contribute the most because the acquisition function targets the low-hanging fruit, the queries that are easiest for the model to learn from. Later rounds bring smaller gains as the remaining unlabeled pool becomes dominated by queries the model already handles reasonably well.
 
-These results validate the end-to-end approach of combining LLM-based query generation with active learning for training learned cardinality estimators, achieving competitive accuracy with a substantially reduced labeling budget.
+The scatter plots and Q-error distributions confirm that the trained model produces well-calibrated estimates across the full range. Comparing against PostgreSQL's native optimizer puts the learned approach in perspective: the MSCN model, trained on a modest number of labeled queries, can match or beat an optimizer that has access to the full table statistics and histogram infrastructure built into a production database.
+
+Taken together, these results support the central thesis: LLM-based generation combined with active learning is a viable and efficient strategy for training learned cardinality estimators.

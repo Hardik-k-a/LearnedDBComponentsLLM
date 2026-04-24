@@ -3,23 +3,25 @@
 \label{chap:approach}
 \pagestyle{plain}
 
-This chapter presents the overall approach for creating and benchmarking learned database components using large language models and active learning. We introduce the system architecture at a conceptual level and describe the core ideas that motivate our pipeline design. The detailed algorithmic treatments of the query generation methodology and the training process with active learning are deferred to Chapters~\ref{chap:query_generation} and~\ref{chap:training_approach}, respectively. Experimental results including workload analysis, learning curves, and model evaluation are presented in Chapter~\ref{chap:experiments}.
+Training a learned cardinality estimator well requires two things that are at odds with each other: a large, diverse set of labeled queries and a limited budget for obtaining those labels. Each label demands executing a query on a live database, which is slow and expensive. This chapter lays out our strategy for resolving that tension. We first describe the qualities that make the proposed framework practical for real research, then walk through the pipeline that ties query generation, labeling, feature extraction, active learning, and evaluation into one continuous workflow.
 
 
-\section{Benefits of the Proposed Framework}
+\section{Why This Framework}
 
-The proposed framework offers several important benefits that distinguish it from prior work on learned cardinality estimation. First, the system is designed to be schema-agnostic: given a schema definition containing table names, column names, data types, and foreign key relationships, the system automatically generates appropriate queries, validates them against the schema, and produces correctly structured training data without any manual configuration. This means that the same pipeline can be applied to entirely different databases without modification, making it a general-purpose tool for training learned estimators.
+Several properties set this framework apart from earlier efforts at learned cardinality estimation.
 
-Second, the framework is built around modular and extensible components. The query generation module can work with any LLM provider or fall back to a deterministic synthetic generator. The active learning module supports pluggable acquisition functions, and the model architecture can be swapped without affecting the rest of the pipeline. This modularity enables researchers to isolate and evaluate individual contributions independently.
+The pipeline is schema-agnostic. Hand it a set of table definitions, column types, and foreign key relationships and it will generate queries, validate them, extract features, and train a model without a single line of manual configuration. Swap the IMDB schema for a retail database and the same code runs unchanged. That kind of portability matters because learned estimators are only useful if they can be retrained cheaply when the schema or the data evolves.
 
-Third, the system provides production-grade robustness through timeout handling for long-running database queries, automatic retry logic with exponential backoff for transient errors, and graceful degradation when queries fail after maximum retries. These mechanisms ensure that the pipeline can process thousands of queries without manual intervention, even when operating on complex schemas with expensive join queries.
+Every stage of the pipeline is designed as a replaceable module. The query generator currently calls a locally hosted Llama model through Ollama, but swapping it for GPT-4 or a template-based generator requires changing one configuration flag, not rewriting the pipeline. The same is true of the acquisition strategy used during active learning and the neural network architecture used for estimation. Researchers can therefore isolate the effect of any single component without confounding variables from the rest of the system.
 
-Finally, the framework supports full reproducibility through configurable random seeds, complete experiment configuration logging, CSV-based results export, and timestamped output directories. These features are essential for scientific rigor and enable meaningful comparisons across different experimental configurations.
+Robustness is built in rather than bolted on. Queries that time out are retried with back-off; queries that fail permanently receive a safe fallback label and the pipeline moves on. Thousands of queries can be processed overnight without a human watching the terminal.
+
+Finally, every experiment is fully reproducible. Random seeds propagate through Python, NumPy, and PyTorch. All hyperparameters are logged to disk alongside the results, and timestamped output directories prevent one run from accidentally overwriting another.
 
 
 \section{System Architecture}
 
-The proposed system consists of an end-to-end pipeline that integrates six major stages: query generation, query validation and format conversion, database labeling, feature extraction and bitmap generation, active learning with model training, and evaluation with visualization. Figure~\ref{fig:system_overview} illustrates the high-level architecture.
+The system chains six stages together into a single automated run. Figure~\ref{fig:system_overview} shows how data flows from the raw database schema all the way to a trained estimator and its evaluation dashboard.
 
 \begin{figure}[htbp]
 \centering
@@ -68,24 +70,19 @@ The proposed system consists of an end-to-end pipeline that integrates six major
 
 \end{tikzpicture}%
 }
-\caption{High-level system architecture showing the end-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop indicates iterative refinement through multiple active learning rounds.}
+\caption{End-to-end pipeline from schema ingestion through query generation, validation, labeling, and active learning to final model evaluation. The dashed feedback loop represents the iterative active learning cycle.}
 \label{fig:system_overview}
 \end{figure}
 
 
-\section{Pipeline Overview}
+\section{Pipeline Walkthrough}
 
-The pipeline begins with query generation, where a large pool of unlabeled SQL queries is produced either by prompting a large language model with the database schema or by using a deterministic synthetic generator. Unlike traditional template-based generators that rely on predefined patterns, LLMs capture complex linguistic and structural patterns present in real-world workloads, producing queries with greater diversity in join topologies, predicate combinations, and selectivity profiles. The details of the prompt engineering strategy, diversity mechanisms, and the multi-layer validation pipeline that filters invalid LLM output are presented in Chapter~\ref{chap:query_generation}.
+Everything starts with query generation. The pipeline feeds the database schema and column statistics to a large language model and asks it to produce batches of \texttt{SELECT COUNT(*)} queries. Because LLMs have absorbed millions of SQL examples during pre-training, the queries they produce tend to look like something a real analyst might write---varied join structures, plausible predicate values, a mix of simple and complex patterns. A deterministic synthetic generator is also available for situations where an LLM is impractical. Chapter~\ref{chap:query_generation} covers the prompt design, diversity mechanisms, and the four-layer validation filter that weeds out malformed or unsupported queries before they enter the pipeline.
 
-Once a pool of valid queries has been assembled, the pipeline proceeds to database labeling, where ground truth cardinalities are obtained by executing each query against the target database. This is the most computationally expensive stage of the pipeline, and it is precisely this cost that motivates the use of active learning. Rather than labeling the entire query pool, only a strategically chosen subset is executed, dramatically reducing the total computation required.
+Validated queries then need ground truth labels. For each query, the pipeline reconstructs a \texttt{SELECT COUNT(*)} statement, executes it against PostgreSQL, and records the row count. This labeling step is by far the most expensive part of the process: a single complex join can take seconds, and labeling thousands of queries can take hours. It is exactly this cost that makes active learning worthwhile. Instead of labeling every query up front, the pipeline labels only a carefully chosen subset and defers the rest.
 
-Before queries can be fed to the neural network, they must be transformed into fixed-size tensor representations. The feature extraction stage encodes each query as three sets of vectors representing tables, predicates, and joins. A key element of this encoding is the bitmap feature, which captures the selectivity of each query's filter predicates on a pre-sampled subset of the underlying data. These bitmaps provide the model with data-aware signals that go beyond purely structural features, enabling it to learn correlations between query predicates and actual data distributions.
+Before queries reach the neural network they are converted into fixed-size tensors. Each query is decomposed into three sets---tables, predicates, and joins---and each element is encoded as a combination of one-hot vectors and, for tables, a bitmap that indicates which pre-sampled rows satisfy the query's filters. These bitmaps give the model a window into the actual data distribution, not just the query structure.
 
-The active learning loop forms the core optimization mechanism of the pipeline. It operates iteratively: an initial batch of queries is randomly selected and labeled to bootstrap the model, after which the model is trained and then used to score all remaining unlabeled queries according to an acquisition function. The highest-scoring queries, those where the model is most uncertain or where the greatest learning potential exists, are selected for labeling and added to the training set. This cycle repeats for a configurable number of rounds, progressively building a training set that is both compact and highly informative. The framework supports multiple acquisition strategies including random sampling, uncertainty sampling, and Monte Carlo dropout, each offering different trade-offs between computational cost and sample efficiency. The complete training methodology, MSCN architecture, and active learning strategies are detailed in Chapter~\ref{chap:training_approach}.
+The active learning loop ties everything together. It begins by randomly labeling a small seed set, trains the MSCN model on that seed, then asks: which of the remaining unlabeled queries would teach the model the most? The acquisition function scores every candidate, the top-scoring queries are labeled and added to the training set, and the model is retrained. This cycle repeats for several rounds. Each round the model gets a little better, and each round it gets better at deciding what to learn next. Three acquisition strategies are supported---random, uncertainty-based, and Monte Carlo dropout---each representing a different trade-off between computation and sample efficiency. The complete training methodology, network architecture, and active learning strategies are detailed in Chapter~\ref{chap:training_approach}.
 
-The final stage produces comprehensive evaluation metrics and visualizations including Q-error distributions, learning curves, predicted-versus-actual scatter plots, and workload analysis dashboards. These outputs enable detailed assessment of both the generated workload quality and the trained model's estimation accuracy.
-
-
-\section{Summary}
-
-This chapter introduced the overarching approach for creating and benchmarking learned database components using LLMs and active learning. We described the benefits of the proposed framework, presented the six-stage pipeline architecture, and outlined the flow of data from schema ingestion through query generation and validation to active learning and model evaluation. The following chapters present the detailed algorithmic treatments: Chapter~\ref{chap:query_generation} covers the LLM-based query generation approach, and Chapter~\ref{chap:training_approach} details the training methodology including feature extraction, active learning, and model architecture.
+The final stage produces a dashboard of diagnostic plots: learning curves showing how accuracy improves with each round, scatter plots of predicted versus actual cardinalities, Q-error distributions, and workload diversity profiles. These visualizations make it straightforward to judge both the quality of the generated data and the performance of the trained estimator. Experimental results are presented in Chapter~\ref{chap:experiments}.
