@@ -1,0 +1,23 @@
+\frametitle{MC Dropout for Uncertainty Sampling}
+
+		\begin{lstlisting}[style=pythonstyle]
+			# MC Dropout Acquisition
+			T = 25
+			model.train()  # enable dropout
+			
+			mc_preds = []
+			
+			for _ in range(T):
+			preds = predict(model, pool_loader)
+			mc_preds.append(preds)
+			
+			mc_preds = np.array(mc_preds)
+			
+			# Uncertainty = predictive variance
+			uncertainty = np.var(mc_preds, axis=0)
+			
+			# Select most uncertain samples
+			idx = np.argsort(uncertainty)[::-1]
+			new_samples = idx[:acquire_now]
+		\end{lstlisting}
+		

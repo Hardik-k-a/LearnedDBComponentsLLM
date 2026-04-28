@@ -1,0 +1,307 @@
+\RequirePackage{tikz}
+\usetikzlibrary{svg.path}
+\RequirePackage[utf8]{inputenc}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                       RPTU Colors                      %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% default coincides with blue scheme
+\definecolor{rptu1}{RGB}{4,44,88}
+\definecolor{rptu2}{RGB}{106,178,231}
+
+\definecolor{rptublaugrau}{RGB}{80,114,137}
+\definecolor{rptugruengrau}{RGB}{119,182,186}
+\definecolor{rptudunkelblau}{RGB}{4,44,88}
+\definecolor{rptuhellblau}{RGB}{106,178,231}
+\definecolor{rptudunkelgruen}{RGB}{0,107,107}
+\definecolor{rptuhellgruen}{RGB}{38,208,124}
+\definecolor{rptuviolett}{RGB}{76,53,117}
+\definecolor{rptupink}{RGB}{209,56,150}
+\definecolor{rpturot}{RGB}{227,27,76}
+\definecolor{rptuorange}{RGB}{255,162,82}
+\definecolor{rptuschwarz}{RGB}{0,0,0}
+\definecolor{rptuweiss}{RGB}{255,255,255}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                       Declare Options                       %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% 1. Option: Show total number of slides
+\newif\ifRPTU@displayTotalFrameNumber%
+\DeclareOptionBeamer{frametotal}[false]{\csname RPTU@displayTotalFrameNumber#1\endcsname}
+% alternating commands
+\DeclareOptionBeamer{displayframetotal}{%
+	\RPTU@displayTotalFrameNumbertrue}
+\DeclareOptionBeamer{hideframetotal}{%
+	\RPTU@displayTotalFrameNumberfalse}
+	
+% 2. Option: Main Color
+\DeclareOptionBeamer{blaugrau}{
+	\definecolor{rptu1}{named}{rptublaugrau}
+	\definecolor{rptu2}{named}{rptugruengrau}
+}
+\DeclareOptionBeamer{gruengrau}{
+	\definecolor{rptu2}{named}{rptublaugrau}
+	\definecolor{rptu1}{named}{rptugruengrau}
+}
+\DeclareOptionBeamer{dunkelblau}{
+	\definecolor{rptu1}{named}{rptudunkelblau}
+	\definecolor{rptu2}{named}{rptuhellblau}
+}
+\DeclareOptionBeamer{hellblau}{
+	\definecolor{rptu2}{named}{rptudunkelblau}
+	\definecolor{rptu1}{named}{rptuhellblau}
+}
+\DeclareOptionBeamer{dunkelgruen}{
+	\definecolor{rptu1}{named}{rptudunkelgruen}
+	\definecolor{rptu2}{named}{rptuhellgruen}
+}
+\DeclareOptionBeamer{hellgruen}{
+	\definecolor{rptu2}{named}{rptudunkelgruen}
+	\definecolor{rptu1}{named}{rptuhellgruen}
+}
+\DeclareOptionBeamer{rot}{
+	\definecolor{rptu1}{named}{rpturot}
+	\definecolor{rptu2}{named}{rptuorange}
+}
+\DeclareOptionBeamer{orange}{
+	\definecolor{rptu2}{named}{rpturot}
+	\definecolor{rptu1}{named}{rptuorange}
+}
+\DeclareOptionBeamer{violett}{
+	\definecolor{rptu1}{named}{rptuviolett}
+	\definecolor{rptu2}{named}{rptupink}
+}
+\DeclareOptionBeamer{pink}{
+	\definecolor{rptu2}{named}{rptuviolett}
+	\definecolor{rptu1}{named}{rptupink}
+}
+
+% 3. Option: Navigation
+\newif\ifRPTU@displayNavigation%
+\DeclareOptionBeamer{navigation}[false]{\csname RPTU@displayNavigation#1\endcsname}
+% alternating commands
+\DeclareOptionBeamer{displaynavigation}{%
+	\RPTU@displayNavigationtrue}
+\DeclareOptionBeamer{hidenavigation}{%
+	\RPTU@displayNavigationfalse}
+	
+% 4. Navigation based on minipage gets option compress
+\DeclareOptionBeamer{compress}{\beamer@compresstrue}
+
+% 5. Option: Show Institute/Affiliation in Footline
+\newif\ifRPTU@displayInstitute%
+\DeclareOptionBeamer{institute}[true]{\csname RPTU@displayInstitute#1\endcsname}
+% alternate commands
+\DeclareOptionBeamer{displayinstitute}{%
+	\RPTU@displayInstitutetrue}
+\DeclareOptionBeamer{hideinstitute}{%
+	\RPTU@displayInstitutefalse}
+	
+% 6. Option: Red Hat Text Font
+\newif\ifRPTU@useredhattext%
+\DeclareOptionBeamer{redhattext}[false]{\csname RPTU@useredhattext#1\endcsname}
+
+
+% 7. Option: Own Logo (from logo generator, maybe with partner logos)
+\newif\ifRPTU@useownlogo%
+\DeclareOptionBeamer{ownlogo}[false]{\csname RPTU@useownlogo#1\endcsname}
+\newcommand{\ownlogo}{}
+
+% 8. Option: Own Logo
+\newif\ifRPTU@usesponsorlogo%
+\DeclareOptionBeamer{sponsorlogo}[false]{\csname RPTU@usesponsorlogo#1\endcsname}
+\newcommand{\sponsorlogo}{}
+
+\ProcessOptionsBeamer
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                      Set Font Family                        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% as explained in metropolixtheme.pdf (Page 33-35)
+% https://tug.org/docs/latex/beamertheme-metropolis/metropolistheme.pdf
+
+\RequirePackage{iftex}
+
+% If we are using XeLaTeX or LuaLaTeX, we can use the package
+% fontspec to correctly set the fonts
+% - RedHatText if installed and option is set to true
+% - Arial as replacement font as specified in the CD
+% - standard LaTeX font if other compiler is used
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi>0%
+	\RequirePackage[no-math]{fontspec}
+	\ifRPTU@useredhattext%
+		\setsansfont{Red Hat Text}[
+		UprightFont = RedHatText-Regular,
+		ItalicFont= RedHatText-Italic ,
+		BoldFont = RedHatText-SemiBold,
+		BoldItalicFont = RedHatText-SemiBoldItalic,
+		FontFace={k}{n}{RedHatText-Bold}]
+	\else%
+		\setsansfont{Arial}[
+		FontFace={k}{n}{Arial Black}
+		]
+	\fi%
+\else%
+	\RequirePackage{lmodern}
+	% but sadly then "black" font with fontface "k" not available
+\fi%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                         Load Theme                          %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\useinnertheme{rptu} %title page
+\useoutertheme{rptu} %fonts, header, footer, frame title 
+\usecolortheme{rptu} %color scheme
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                            TOC                              %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                  Itemize/Enumerate/Blocks                   %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\setbeamertemplate{section in toc}{{\usebeamercolor[fg]{item in toc} \inserttocsectionnumber.}\hspace*{0.5em}\inserttocsection}
+\setbeamertemplate{subsection in toc}{\hspace*{1.5em}{\usebeamercolor[fg]{item in toc}\guilsinglright}\hspace*{1em}\inserttocsubsection\\}
+
+\setbeamertemplate{itemize item}{\guilsinglright\hspace*{0.5em}}
+\setbeamertemplate{itemize subitem}{\guilsinglright\hspace*{0.25em}}
+\setbeamertemplate{itemize subsubitem}{\guilsinglright\hspace*{0.2em}}
+\setbeamertemplate{enumerate item}{\theenumi.~}
+\setbeamertemplate{enumerate subitem}{\theenumi.\theenumii.~}
+
+\setlength{\leftmargini}{1.5em}
+\setlength{\leftmarginii}{1.25em}
+\setlength{\leftmarginiii}{1.2em}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{blocks}[rounded][shadow=false]  
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                     Create a Section Page                   %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\setbeamerfont{section title}{size=\Large, series=\bfseries}
+
+\newcommand*{\rptusectionpage}{
+	\begingroup
+	\setbeamertemplate{background canvas}{\color{rptu1}\vrule width\paperwidth height\paperheight}
+	\setbeamertemplate{section page}{
+ 		\begin{minipage}{0.3\paperwidth}
+                       \begin{flushright} 
+  			\usebeamercolor[fg]{section title}%
+			\usebeamerfont{sectionpage}%
+                      {\fontseries{k}\fontsize{128}{132}\selectfont\textcolor{rptu2}{\thesection}}
+			\end{flushright}
+              \end{minipage}%
+	     \hspace*{0.05\paperwidth}
+	      \begin{minipage}{0.5\paperwidth}
+                       \begin{flushleft} 
+  		       \usebeamercolor[fg]{section title}%
+                       \usebeamerfont{sectionpage}{\Large \insertsectionhead}\vskip0pt%
+                       \ifx\insertsubsectionhead\@empty\else%
+                         \usebeamercolor[fg]{subsection title}%
+                         \usebeamerfont{subsection title}%
+                         \insertsubsectionhead
+                       \fi
+			\end{flushleft}
+                     \end{minipage}
+}
+\frame[plain]{\sectionpage}
+\endgroup
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                     Create a Thank you page               %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\def\thankstitle#1{\def\@thankstitle{#1}}
+\def\thankssubtitle#1{\def\@thankssubtitle{#1}}
+\def\thanksinfo#1{\def\@thanksinfo{#1}}
+% default values
+\thankstitle{Thank you}
+\thankssubtitle{\insertauthor}
+\thanksinfo{}
+
+
+\newcommand*{\rptuthankyou}{
+	\begingroup
+	\setbeamertemplate{background canvas}{\color{rptu1}\vrule width\paperwidth height\paperheight}
+	\setbeamertemplate{section page}{
+	      \begin{minipage}{0.49\paperwidth}
+                       \begin{flushleft} 
+                       \vskip5ex%
+                         \usebeamercolor[fg]{section title}%
+                         {\Large\usebeamerfont{sectionpage}{\@thankstitle}}
+                             \vskip1ex%
+   			 {\usebeamercolor[fg]{slide separation line}\rule[1ex]{1cm}{0.5pt}}%
+   			 \vskip0pt%
+			  \usebeamerfont{author}\@thankssubtitle%
+			  \vskip10ex%
+  		     \@thanksinfo			
+		     \end{flushleft}
+               \end{minipage}%
+               \begin{minipage}{0.49\paperwidth}
+                       \resizebox{!}{0.7\paperheight}{\begin{tikzpicture}[draw={rptu2}, 
+		%tight background,background rectangle/.style= {fill=red}, show background rectangle,    % used for testing the margins
+		rotate=180, xscale=-1] %need rotate and xscale to shift the origin, given svg data has origin at top left
+		\draw svg{% this is the left part of the U
+			M470.1,286.8V218h-24.6v68.7c0,7.7-2.3,14.2-7.4,19.6c-2.3,2.3-5.1,4.4-7.7,5.7c-0.6,0.3-0.7,0.3-1.4,0.7
+			c-3.7,2-6.4,5.7-6.4,10.5c0,6.4,5.1,11.4,11.4,11.4c1,0,2.9-0.4,4.4-1c6.4-2.3,12.5-6.1,17.5-11.1
+			C465.4,312.7,470.1,300.9,470.1,286.8
+		};
+		\draw svg{% this is the right part of the U
+			M365.9,286.8c0,14.1,4.7,25.9,14.2,35.7c5.1,5.1,11.1,8.8,17.5,11.1c1.5,0.6,3.3,1,4.4,1
+			c6.4,0,11.4-5,11.4-11.4c0-4.7-2.7-8.4-6.4-10.5c-0.6-0.3-0.8-0.4-1.4-0.7c-2.7-1.4-5.4-3.4-7.7-5.7c-5.1-5.4-7.4-11.8-7.4-19.6
+			V218h-24.6L365.9,286.8
+		};
+	\end{tikzpicture}%
+	}
+              \end{minipage}
+
+}
+\frame[plain]{\sectionpage}
+\endgroup
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%      Provide Commands to Excludes Frames from Navigation    %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%https://tex.stackexchange.com/questions/37127/how-to-remove-some-pages-from-the-navigation-bullets-in-beamer/45038#45038
+
+
+\let\beamer@writeslidentry@miniframeson=\beamer@writeslidentry
+\def\beamer@writeslidentry@miniframesoff{%
+  \expandafter\beamer@ifempty\expandafter{\beamer@framestartpage}{}% does not happen normally
+  {%else
+    % removed \addtocontents commands
+    \clearpage\beamer@notesactions%
+  }
+}
+\newcommand*{\navigationinclude}{\let\beamer@writeslidentry=\beamer@writeslidentry@miniframeson}
+\newcommand*{\navigationexclude}{\let\beamer@writeslidentry=\beamer@writeslidentry@miniframesoff}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                     RPTU Design Color Box                   %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% by Raul
+
+\RequirePackage{tcolorbox}
+
+\newtcolorbox{rptu-twocolors}{colback=rptu2, colframe=rptu1, 
+	             sharp corners, rounded corners = southeast,
+		     arc=10mm}
+
+\newtcolorbox{rptu-onecolor}{colback=rptu1, colframe=rptu1, coltext=rptuweiss,
+	             sharp corners, rounded corners = southeast,
+		     arc=10mm}
+
+\mode<all>
