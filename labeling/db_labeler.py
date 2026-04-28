@@ -1,6 +1,6 @@
 """
 db_labeler.py
-Handles database labeling of queries — executes SELECT COUNT(*) to get
+Handles database labeling of queries - executes SELECT COUNT(*) to get
 true cardinalities for queries selected by the active learning loop.
 """
 

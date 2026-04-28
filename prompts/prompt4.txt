@@ -9,4 +9,4 @@ Rules:
 3. Use varied predicates: =, >, <, BETWEEN, LIKE, IN.
 4. Return meaningful columns per query.
 5. Keep “notes” concise (≤12 words).
-6. Output valid JSON array only — no text or markdown.
+6. Output valid JSON array only - no text or markdown.

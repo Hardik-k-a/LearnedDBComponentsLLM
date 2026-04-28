@@ -23,36 +23,36 @@
 \contentsline {section}{\numberline {3.6}Data Diversity and Distribution Alignment}{10}{section.3.6}%
 \contentsline {section}{\numberline {3.7}Positioning of the Proposed Approach}{10}{section.3.7}%
 \contentsline {chapter}{\numberline {4}Approach}{12}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Why This Framework}{12}{section.4.1}%
-\contentsline {section}{\numberline {4.2}System Architecture}{12}{section.4.2}%
-\contentsline {section}{\numberline {4.3}Pipeline Walkthrough}{13}{section.4.3}%
+\contentsline {section}{\numberline {4.1}System Architecture}{12}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Pipeline Walkthrough}{12}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Why This Framework}{13}{section.4.3}%
 \contentsline {chapter}{\numberline {5}Query Generation Approach}{15}{chapter.5}%
 \contentsline {section}{\numberline {5.1}Why Use a Language Model}{15}{section.5.1}%
 \contentsline {section}{\numberline {5.2}Prompt Design}{15}{section.5.2}%
 \contentsline {section}{\numberline {5.3}Keeping the Workload Diverse}{17}{section.5.3}%
 \contentsline {section}{\numberline {5.4}Filtering Out Bad Queries}{17}{section.5.4}%
 \contentsline {section}{\numberline {5.5}Synthetic Fallback}{18}{section.5.5}%
-\contentsline {chapter}{\numberline {6}Training Approach}{20}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Database Labeling}{20}{section.6.1}%
-\contentsline {section}{\numberline {6.2}Feature Extraction and Bitmap Generation}{20}{section.6.2}%
-\contentsline {section}{\numberline {6.3}Multi-Set Convolutional Network}{21}{section.6.3}%
-\contentsline {section}{\numberline {6.4}Normalization and Loss}{23}{section.6.4}%
-\contentsline {section}{\numberline {6.5}Active Learning}{24}{section.6.5}%
-\contentsline {subsection}{\numberline {6.5.1}The Core Idea}{24}{subsection.6.5.1}%
-\contentsline {subsection}{\numberline {6.5.2}Acquisition Strategies}{24}{subsection.6.5.2}%
-\contentsline {paragraph}{Random Sampling.}{24}{paragraph*.10}%
-\contentsline {paragraph}{Uncertainty Sampling.}{24}{paragraph*.11}%
-\contentsline {paragraph}{Monte Carlo Dropout.}{25}{paragraph*.12}%
-\contentsline {subsection}{\numberline {6.5.3}The Training Loop}{25}{subsection.6.5.3}%
-\contentsline {subsection}{\numberline {6.5.4}Why Active Learning Matters Here}{26}{subsection.6.5.4}%
-\contentsline {chapter}{\numberline {7}Experimental Evaluation}{27}{chapter.7}%
-\contentsline {section}{\numberline {7.1}Experimental Setup}{27}{section.7.1}%
-\contentsline {section}{\numberline {7.2}Query Generation Analysis}{27}{section.7.2}%
-\contentsline {section}{\numberline {7.3}Active Learning and Model Training Results}{30}{section.7.3}%
-\contentsline {section}{\numberline {7.4}Labeling Efficiency Analysis}{34}{section.7.4}%
-\contentsline {section}{\numberline {7.5}Comparison with PostgreSQL Optimizer}{34}{section.7.5}%
-\contentsline {section}{\numberline {7.6}Discussion}{35}{section.7.6}%
-\contentsline {chapter}{\numberline {8}Conclusion}{39}{chapter.8}%
-\contentsline {section}{\numberline {8.1}What We Built and What We Learned}{39}{section.8.1}%
-\contentsline {section}{\numberline {8.2}Limitations}{39}{section.8.2}%
-\contentsline {section}{\numberline {8.3}Directions for Future Work}{40}{section.8.3}%
+\contentsline {chapter}{\numberline {6}Active Learning}{20}{chapter.6}%
+\contentsline {section}{\numberline {6.1}From Random Labeling to Intelligent Selection}{20}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Acquisition Strategies}{21}{section.6.2}%
+\contentsline {paragraph}{Random Sampling.}{21}{paragraph*.9}%
+\contentsline {paragraph}{Uncertainty Sampling.}{21}{paragraph*.10}%
+\contentsline {paragraph}{Monte Carlo Dropout.}{21}{paragraph*.11}%
+\contentsline {section}{\numberline {6.3}The Training Loop}{22}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Why It Works for Cardinality Estimation}{23}{section.6.4}%
+\contentsline {chapter}{\numberline {7}Training Approach}{25}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Database Labeling}{25}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Feature Extraction and Bitmap Generation}{25}{section.7.2}%
+\contentsline {section}{\numberline {7.3}Multi-Set Convolutional Network}{26}{section.7.3}%
+\contentsline {section}{\numberline {7.4}Normalization and Loss}{28}{section.7.4}%
+\contentsline {chapter}{\numberline {8}Experimental Evaluation}{29}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Experimental Setup}{29}{section.8.1}%
+\contentsline {section}{\numberline {8.2}Query Generation Analysis}{29}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Active Learning and Model Training Results}{32}{section.8.3}%
+\contentsline {section}{\numberline {8.4}Labeling Efficiency Analysis}{36}{section.8.4}%
+\contentsline {section}{\numberline {8.5}Comparison with PostgreSQL Optimizer}{36}{section.8.5}%
+\contentsline {section}{\numberline {8.6}Discussion}{37}{section.8.6}%
+\contentsline {chapter}{\numberline {9}Conclusion}{41}{chapter.9}%
+\contentsline {section}{\numberline {9.1}What We Built and What We Learned}{41}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Limitations}{41}{section.9.2}%
+\contentsline {section}{\numberline {9.3}Directions for Future Work}{42}{section.9.3}%

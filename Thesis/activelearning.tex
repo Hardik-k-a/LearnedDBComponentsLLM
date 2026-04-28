@@ -1,0 +1,87 @@
+% !TEX root =  main.tex
+\chapter{Active Learning}
+\label{chap:active_learning}
+\pagestyle{plain}
+
+Labeling queries is the most expensive part of the pipeline. Every label requires executing a real SQL query on a database, and complex joins can take seconds or even minutes each. When the query pool numbers in the thousands, the question is no longer how to label everything---it is how to label as little as possible while still training an accurate model. Active learning provides a principled answer. This chapter explains the idea, walks through the specific strategies we implement, and describes how the full training loop operates in practice.
+
+
+\section{From Random Labeling to Intelligent Selection}
+
+In a naive setup, we would randomly sample queries from the pool, label them, and train the model on whatever we get. Random sampling has one virtue: it is simple. But it treats every query as equally valuable, which is almost never true. A pool of five thousand queries will contain many that look structurally similar---single-table scans with common predicates, for instance---and labeling hundreds of near-duplicates adds little new information. Meanwhile, the pool also contains unusual queries that fall in poorly explored corners of the feature space: rare join patterns, extreme selectivities, edge cases that the model has never seen. Labeling even a handful of these can shift the model's predictions dramatically.
+
+Active learning flips the selection process. Instead of choosing queries at random, it asks the model itself: where are you least confident? The model, having been trained on the labels collected so far, scores every remaining unlabeled query by some measure of informativeness. The queries with the highest scores---the ones the model is most uncertain about or expects to learn the most from---are selected for labeling. This targeted approach means the model's training set grows not randomly but strategically, concentrating the labeling budget where it matters most.
+
+Formally, let $\mathcal{U} = \{q_1, q_2, \ldots, q_N\}$ be the full unlabeled query pool, let $\mathcal{L} \subset \mathcal{U}$ be the set of queries labeled so far, and let $f_\theta$ denote the MSCN model trained on $\mathcal{L}$. An acquisition function $\alpha: \mathcal{U} \setminus \mathcal{L} \rightarrow \mathbb{R}$ assigns a score to each unlabeled query. At every round, the $k$ queries with the highest scores are selected, labeled by executing them on the database, and added to $\mathcal{L}$. The model is retrained and the cycle continues. The goal is to reach the best possible estimation accuracy while keeping $|\mathcal{L}|$ as small as possible.
+
+
+\section{Acquisition Strategies}
+
+The acquisition function is the engine of active learning. It decides what the model learns next, and a poor choice can waste labels on queries that contribute nothing. We implement three strategies, ranging from a zero-cost baseline to a Bayesian approximation that squeezes more information out of each scoring round.
+
+\paragraph{Random Sampling.} Queries are drawn uniformly at random from the unlabeled pool. There is no scoring step, no forward pass through the model---just a random number generator. Random sampling has value as a control condition: any intelligent strategy must beat it to justify its computational overhead. Surprisingly, random sampling is not terrible in our setting, because the LLM-generated query pool already has considerable diversity built in. But it cannot compete with targeted strategies once the easy gains from diversity have been exhausted and the model needs to resolve specific pockets of uncertainty.
+
+\paragraph{Uncertainty Sampling.} The MSCN model ends with a sigmoid activation, so its output falls in $[0, 1]$. When the model is confident about a query, the output sits near one extreme or the other. When the model is unsure, the output drifts toward the midpoint. Uncertainty sampling picks the queries closest to that midpoint:
+
+\begin{equation}
+\alpha_{\text{uncertainty}}(q) = -\left| f_\theta(q) - 0.5 \right|
+\end{equation}
+
+A query with $f_\theta(q) = 0.51$ scores almost as high as possible: the model genuinely cannot tell whether this query returns a lot of rows or very few. Labeling it and adding the ground truth forces the model to commit, pushing the prediction toward the correct end of the scale and improving accuracy in that region of the feature space.
+
+Uncertainty sampling requires a single forward pass per unlabeled query, making it nearly as cheap as random sampling. Its weakness is that it focuses entirely on the model's current indecision and ignores whether the selected queries are diverse among themselves. In the worst case it could pick a cluster of very similar queries that all happen to sit near $0.5$, spending several labels to resolve what amounts to a single point of confusion. In practice this is mitigated by the natural diversity of the query pool, but it remains a theoretical limitation.
+
+\paragraph{Monte Carlo Dropout.} Gal and Ghahramani~\cite{gal2016dropout} demonstrated that a neural network with dropout can be reinterpreted as a Bayesian model. The idea is simple: during inference, instead of turning dropout off (as is standard), leave it on and run the same input through the network multiple times. Each forward pass randomly disables a different subset of neurons, producing a slightly different prediction. If the network has learned a stable representation of the input, the predictions will cluster tightly. If the representation is fragile---if the network is relying on a few neurons that happen to be active---the predictions will scatter.
+
+We run $T = 25$ forward passes per query and compute the variance of the resulting predictions:
+
+\begin{equation}
+\alpha_{\text{MC}}(q) = \frac{1}{T} \sum_{t=1}^T \left(\hat{y}^{(t)} - \bar{y}\right)^2
+\end{equation}
+
+where $\bar{y} = \frac{1}{T}\sum_{t=1}^T \hat{y}^{(t)}$ is the mean prediction across all passes. High variance means the model's answer depends heavily on which neurons are present, a sign that it has not converged to a reliable estimate for that query. These high-variance queries are selected for labeling.
+
+Monte Carlo dropout costs $T$ times as much as a single forward pass, but even with $T = 25$ the scoring step takes seconds for the entire unlabeled pool, while labeling a single query on the database can take seconds on its own. The richer uncertainty signal is worth the overhead. Compared to plain uncertainty sampling, MC dropout captures a different kind of uncertainty: not just ``the model's output is near $0.5$'' but ``the model's internal representation is unstable.'' A query can have a confident-looking output of $0.85$ while still showing high variance under MC dropout, revealing that the confidence is an artifact of a particular dropout mask rather than genuine knowledge.
+
+
+\section{The Training Loop}
+
+The full active learning procedure, shown in Algorithm~\ref{alg:active_learning_full}, starts by splitting the query pool into three partitions. Ten percent is held out as a fixed validation set. From the remaining ninety percent, twenty percent is sampled at random to form the initial training set, and the rest becomes the unlabeled pool.
+
+\begin{algorithm}[htbp]
+\caption{Active Learning for Cardinality Estimation}
+\label{alg:active_learning_full}
+\begin{algorithmic}[1]
+\State Set aside 10\% of all queries as a fixed validation set
+\State From the remaining queries, randomly pick 20\% as the initial training set
+\State Obtain true cardinalities for the initial training set by running them on the database
+\State Create a new MSCN model
+\For{each active learning round}
+    \State Train the model on all currently labeled queries
+    \State Measure the model's accuracy on the validation set
+    \State Use the chosen strategy to score each unlabeled query by how informative it would be
+    \State Select the top-scoring queries and obtain their true cardinalities from the database
+    \State Add the newly labeled queries to the training set
+\EndFor
+\State \Return the trained model and accuracy metrics
+\end{algorithmic}
+\end{algorithm}
+
+The initial seed of twenty percent is not arbitrary. The model needs enough labeled data in the first round to learn a baseline that is good enough for its uncertainty scores to be meaningful. If the seed is too small---say, five percent---the model's first predictions are essentially random, and the acquisition function ends up selecting queries based on noise rather than genuine uncertainty. Twenty percent strikes a balance: large enough for a reasonable first model, small enough to leave a substantial unlabeled pool for active selection to work with.
+
+In each subsequent round, the model trains on everything labeled so far, evaluates on the validation set, and then scores the remaining unlabeled queries. The top $k$ queries are labeled and folded in. Over the course of several rounds the training set evolves from a random sample into a curated collection. Early rounds tend to pull in queries from underrepresented regions---unusual join patterns, extreme selectivities, corner cases the random seed happened to miss. Later rounds focus on tightening the model's estimates in areas where it is already close but not yet accurate.
+
+The total labeling cost across the full run is $\lfloor 0.1 \times N \rfloor + \lfloor 0.2 \times 0.9N \rfloor + R \times k$, where $N$ is the total pool size, $R$ is the number of active learning rounds, and $k$ is the per-round acquisition batch size. With typical settings of $R = 5$ and $k = 200$, the pipeline labels roughly forty percent of the pool and leaves the rest untouched---computation that was never spent.
+
+
+\section{Why It Works for Cardinality Estimation}
+
+Active learning does not work equally well for every machine learning problem. Its effectiveness depends on three conditions, all of which hold in our setting.
+
+The first condition is that labels must be expensive enough to make intelligent selection worthwhile. In image classification, for instance, labeling is often cheap---a human glances at a photo and clicks a category. The overhead of running an acquisition function may not be justified. In cardinality estimation, every label requires a live database execution. A three-table join over tens of millions of rows can take several seconds. Across thousands of queries, the labeling stage dominates the pipeline's wall-clock time. Cutting the label count by a third or more translates directly into hours saved.
+
+The second condition is that the query space must be large enough and structured enough that random sampling is wasteful. If all queries were equally informative, there would be nothing for active learning to exploit. But the space of possible queries is vast and highly non-uniform. Some regions---simple single-table scans with common predicates---are easy for the model and overrepresented in a random sample. Other regions---complex multi-way joins with rare filter combinations---are hard for the model and underrepresented. The acquisition function redirects the labeling budget toward the hard, underrepresented regions, building a training set that teaches more per label than a random sample ever could.
+
+The third condition is that the model's uncertainty signal must be trustworthy. If the model is confidently wrong---predicting extreme values with low uncertainty when the truth is somewhere in the middle---then the acquisition function will systematically avoid the queries that need labeling most. MSCN's architecture works in our favor here. The sigmoid output provides a natural confidence scale, and the dropout layers, when left active during inference, produce variance estimates that correlate well with actual prediction error. The model tends to be uncertain precisely where it is inaccurate, which is exactly what the acquisition function needs.
+
+When all three conditions hold, active learning enters a virtuous cycle. The acquisition function picks informative queries, labeling them improves the model, the improved model produces better uncertainty estimates, and the better estimates lead to even more informative selections in the next round. Each iteration sharpens the model's focus, and the training set converges toward a compact core of maximally informative examples.

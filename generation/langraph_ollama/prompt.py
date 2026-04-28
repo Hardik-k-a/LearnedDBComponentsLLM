@@ -21,7 +21,7 @@ CRITICAL UNIQUENESS CONSTRAINT:
 Rules:
 1. Only valid standard SQL SELECT statements.
 2. PROHIBITED: No subqueries, GROUP BY, HAVING, ORDER BY, or aggregate functions (COUNT, SUM, AVG, etc.).
-3. Do NOT use SELECT * — select meaningful columns only.
+3. Do NOT use SELECT * - select meaningful columns only.
 4. Use explicit JOIN ... ON syntax only.
 5. You MUST generate exactly:
    - 3 highly selective queries (point predicates on keys)
@@ -34,7 +34,7 @@ Rules:
 9. PRODUCTION STANDARDS:
    - Always fully qualify columns (table.column) when more than one table is involved.
    - Use meaningful aliases for tables.
-10. Output a valid JSON array only — no extra text.
+10. Output a valid JSON array only - no extra text.
 
 FINAL VALIDATION (perform silently before output):
 - Verify all tables and columns exist in the schema.

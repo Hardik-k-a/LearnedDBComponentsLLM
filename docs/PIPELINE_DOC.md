@@ -47,7 +47,7 @@ A fully parameterized, schema-agnostic pipeline that automates the complete work
 
 | File | Purpose |
 |------|---------|
-| `pipeline.py` | Main orchestrator — ties all steps together |
+| `pipeline.py` | Main orchestrator - ties all steps together |
 | `query_generator.py` | LLM-based (Ollama) and synthetic SQL query generation |
 | `format_converter.py` | SQL → MSCN CSV format converter (dynamic alias parsing) |
 | `db_labeler.py` | Database labeling with timeout, retry, and error handling |
@@ -113,7 +113,7 @@ python pipeline.py \
 
 ### STEP 1: Database Connection
 
-Establishes a connection to the PostgreSQL database using `psycopg2`. The connection is configured with `autocommit = False` so that transactions are explicitly managed — each successful query label is committed individually, and failed queries are rolled back cleanly.
+Establishes a connection to the PostgreSQL database using `psycopg2`. The connection is configured with `autocommit = False` so that transactions are explicitly managed - each successful query label is committed individually, and failed queries are rolled back cleanly.
 
 **Module**: `db_labeler.get_connection()`  
 **Input**: `--db-host`, `--db-port`, `--db-name`, `--db-user`, `--db-password`  
@@ -129,7 +129,7 @@ This step prepares the data needed for runtime bitmap generation by:
 
 1. **Auto-detecting primary keys**: Queries `information_schema.table_constraints` for explicit `PRIMARY KEY` constraints. If none are found (common in imported datasets), it falls back to using the **first column** of each table via `information_schema.columns` with `ordinal_position = 1`.
 
-2. **Creating materialized samples**: For each table, selects `N` random primary key values (default 1000) using `ORDER BY RANDOM() LIMIT N`. These sampled PKs form the basis of bitmap vectors — during bitmap generation, each query's predicates are tested against these sample rows.
+2. **Creating materialized samples**: For each table, selects `N` random primary key values (default 1000) using `ORDER BY RANDOM() LIMIT N`. These sampled PKs form the basis of bitmap vectors - during bitmap generation, each query's predicates are tested against these sample rows.
 
 **Module**: `bitmap_utils.get_primary_keys()`, `bitmap_utils.create_materialized_samples()`  
 **Input**: Database cursor, `--num-materialized-samples`  
@@ -165,9 +165,9 @@ Generates `--total-queries` SQL queries using one of two modes:
 
 Converts raw SQL strings into the structured format that the MSCN model requires. Each query is decomposed into three components:
 
-1. **Tables**: `["title_basics tb", "title_ratings tr"]` — full table name + alias
-2. **Joins**: `["tb.tconst=tr.tconst"]` — equi-join conditions
-3. **Predicates**: `[("tb.startyear", ">", "2000"), ("tr.averagerating", "<", "8")]` — column, operator, value triples
+1. **Tables**: `["title_basics tb", "title_ratings tr"]` - full table name + alias
+2. **Joins**: `["tb.tconst=tr.tconst"]` - equi-join conditions
+3. **Predicates**: `[("tb.startyear", ">", "2000"), ("tr.averagerating", "<", "8")]` - column, operator, value triples
 
 The parser dynamically extracts table aliases from the `FROM` clause using regex (no hardcoded alias map). It also queries the database for each column's `MIN`/`MAX` values to build scaling metrics for numeric features.
 
@@ -217,7 +217,7 @@ The core training loop that iteratively improves the model by strategically sele
 
 1. **Encode**: Converts all labeled queries into MSCN tensor format using the vocabularies and bitmaps. Each query becomes three feature vectors (samples, predicates, joins) with corresponding masks.
 
-2. **Train**: Trains the MSCN model for `--epochs` epochs using Q-error loss. The Q-error loss is defined as `max(pred/true, true/pred)` — it penalizes both over- and under-estimation symmetrically on a ratio scale.
+2. **Train**: Trains the MSCN model for `--epochs` epochs using Q-error loss. The Q-error loss is defined as `max(pred/true, true/pred)` - it penalizes both over- and under-estimation symmetrically on a ratio scale.
 
 3. **Evaluate**: Runs the trained model on the validation set and computes Q-error metrics (median, 90th, 95th percentile). These are tracked across rounds to produce the learning curve.
 
@@ -254,11 +254,11 @@ Saves all pipeline outputs to a timestamped directory:
 
 Generates 14 graphs organized into 3 categories, saved in a `graphs/` subdirectory:
 
-- **Data Generation Analysis** (6 graphs): Visualize the structure and distribution of generated queries — how many tables, joins, predicates per query, what cardinality ranges are covered, and how many queries passed/failed validation.
+- **Data Generation Analysis** (6 graphs): Visualize the structure and distribution of generated queries - how many tables, joins, predicates per query, what cardinality ranges are covered, and how many queries passed/failed validation.
 
-- **Model Training & Testing** (6 graphs): Track training progress and model quality — learning curve showing Q-error improvement as more data is labeled, training loss convergence, predicted vs actual cardinality scatter, Q-error CDF, and per-round error distribution.
+- **Model Training & Testing** (6 graphs): Track training progress and model quality - learning curve showing Q-error improvement as more data is labeled, training loss convergence, predicted vs actual cardinality scatter, Q-error CDF, and per-round error distribution.
 
-- **Analysis Summary** (2 graphs): High-level overview — labeling success rate and a 4-panel summary dashboard combining key metrics into one view.
+- **Analysis Summary** (2 graphs): High-level overview - labeling success rate and a 4-panel summary dashboard combining key metrics into one view.
 
 **Module**: `pipeline_graphs.generate_all_graphs()`  
 **Input**: All tracked metrics from the AL loop (queries, losses, qerrors, predictions, labeling stats)  
@@ -348,7 +348,7 @@ Generates 14 graphs organized into 3 categories, saved in a `graphs/` subdirecto
 
 ## Schema-Agnostic Design
 
-The pipeline works with **any PostgreSQL database** — no hardcoded table or column names:
+The pipeline works with **any PostgreSQL database** - no hardcoded table or column names:
 
 1. **Query Generation**: The `--schema-file` DDL is injected directly into the LLM prompt, so generated queries match your actual schema.
 
@@ -412,6 +412,6 @@ The pipeline works with **any PostgreSQL database** — no hardcoded table or co
 | `WARNING: Could not auto-detect primary keys` | Database tables have no explicit PK constraints | Pipeline falls back to first column automatically |
 | `[db_labeler] Table not found` | Schema file doesn't match actual DB tables | Update `--schema-file` to match your database |
 | `[db_labeler] Timeout after Xms` | Query too slow (large joins) | Increase `--db-timeout` (e.g., `30000` for 30s) |
-| `[skip-validation] Rejected malformed SQL` | LLM generated invalid SQL (OR, IS NULL, etc.) | Normal behavior — filtered automatically |
+| `[skip-validation] Rejected malformed SQL` | LLM generated invalid SQL (OR, IS NULL, etc.) | Normal behavior - filtered automatically |
 | Ollama connection error | Ollama not running or wrong URL | Start Ollama or update `--ollama-url` |
 | All cardinalities = 1 | Database tables not loaded | Load your dataset into PostgreSQL |

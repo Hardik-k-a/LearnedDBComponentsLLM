@@ -75,7 +75,7 @@ def execute_queries(
                 q["exec_error_msg"] = f"Timeout after {DB_TIMEOUT} ms"
 
                 if q["exec_attempts"] < MAX_RETRIES:
-                    logger.warning(f"Timeout on {q['id']} — retrying")
+                    logger.warning(f"Timeout on {q['id']} - retrying")
                     q["exec_status"] = "failed"
                     time.sleep(SLEEP_ON_ERROR)
                 else:

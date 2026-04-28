@@ -671,7 +671,7 @@ def run_pipeline(args):
             print(f"  Acquiring {acquire_now} samples using MC Dropout (T=25)...")
             # Need to label + encode unlabeled pool temporarily for uncertainty
             # For MC Dropout, we need bitmaps for the unlabeled queries too
-            # We generate dummy bitmaps (zeros) for speed — the model still
+            # We generate dummy bitmaps (zeros) for speed - the model still
             # needs input tensors
             model.train()  # Keep dropout active
             all_mc_preds = []

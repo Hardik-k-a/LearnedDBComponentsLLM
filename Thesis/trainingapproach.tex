@@ -3,7 +3,7 @@
 \label{chap:training_approach}
 \pagestyle{plain}
 
-Getting from a pile of validated SQL queries to a neural network that estimates cardinalities accurately involves four non-trivial steps: labeling each query with its true row count, encoding the query into a fixed-size tensor the network can digest, training the network itself, and---most importantly---deciding which queries are worth labeling in the first place. This chapter walks through each of these steps, with particular emphasis on the active learning framework that ties them together.
+Getting from a pile of validated SQL queries to a neural network that estimates cardinalities accurately involves several non-trivial steps: labeling each query with its true row count, encoding the query into a fixed-size tensor the network can digest, and training the network with an appropriate loss function. This chapter covers each of these steps. The active learning framework that decides which queries are worth labeling is presented separately in Chapter~\ref{chap:active_learning}.
 
 
 \section{Database Labeling}
@@ -156,78 +156,3 @@ Q(p, a) = \max\left(\frac{p}{a}, \frac{a}{p}\right)
 \end{equation}
 
 A Q-error of one means a perfect estimate. A Q-error of ten means the prediction is off by a factor of ten, whether it overestimates or underestimates. This symmetry is important: a query optimizer cares about the magnitude of the error, not its direction. Q-error is also scale-invariant---being wrong by a factor of two carries the same penalty whether the true cardinality is a hundred or a million.
-
-
-\section{Active Learning}
-
-\subsection{The Core Idea}
-
-Active learning starts from a simple observation: not all training examples are equally useful. Some queries fall in regions of the feature space that the model already understands well; labeling them adds little new information. Other queries lie near decision boundaries or in poorly explored regions where the model's predictions are unreliable; labeling those queries teaches the model the most per label spent.
-
-In our setting the unlabeled pool $\mathcal{U}$ consists of all validated, encoded queries. A small seed set $\mathcal{L}_0$ is drawn at random and labeled by executing the corresponding COUNT queries on the database. The model is trained on $\mathcal{L}_0$, and then the active learning loop begins. At each round the trained model examines every remaining unlabeled query and assigns it a score that reflects how much the model expects to learn from its label. The highest-scoring queries---typically a batch of fixed size---are selected, labeled, and folded into the training set. The model is retrained, and the cycle repeats.
-
-The appeal of this approach in the context of cardinality estimation is direct and concrete. Database execution is expensive. Every query that we choose \emph{not} to label saves real computation. If the acquisition function does its job, the model reaches a given accuracy level with far fewer labels than it would need under random selection, translating into hours of saved database time on large schemas.
-
-
-\subsection{Acquisition Strategies}
-
-The acquisition function is the heart of the active learning loop. It answers the question: given the current state of the model, which unlabeled query would be most valuable to label next? We implement three strategies, each embodying a different notion of ``valuable.''
-
-\paragraph{Random Sampling.} The simplest baseline. Queries are selected uniformly at random, with no regard for what the model currently knows or does not know. Random sampling has no computational overhead beyond a random number generator, and it benefits from whatever diversity is already present in the query pool. It serves as the control condition against which the other strategies are measured.
-
-\paragraph{Uncertainty Sampling.} The model's sigmoid output maps to the interval $[0, 1]$. When the output is near the extremes---close to zero or close to one---the model is expressing high confidence in its estimate. When the output hovers near $0.5$, the model is effectively shrugging: it cannot decide whether the true cardinality is large or small. Uncertainty sampling exploits this by selecting the queries whose predictions are closest to $0.5$:
-
-\begin{equation}
-\alpha_{\text{uncertainty}}(q) = -\left| f_\theta(q) - 0.5 \right|
-\end{equation}
-
-The queries with the highest $\alpha$ values (i.e., those closest to $0.5$) are the ones the model is least sure about, and labeling them forces the model to resolve its indecision. This is computationally cheap---a single forward pass through the model suffices---and tends to outperform random sampling noticeably after the first few rounds.
-
-\paragraph{Monte Carlo Dropout.} Gal and Ghahramani~\cite{gal2016dropout} showed that a network with dropout can be interpreted as an approximate Bayesian model. Keeping dropout turned on during inference and running the same query through the network $T$ times produces $T$ slightly different predictions, because each pass randomly zeros out different neurons. If the predictions are tightly clustered, the model is confident. If they are spread out, the model is uncertain.
-
-We quantify this spread as the variance over the $T$ forward passes:
-
-\begin{equation}
-\alpha_{\text{MC}}(q) = \text{Var}\left(\{\hat{y}^{(t)}\}_{t=1}^T\right) = \frac{1}{T} \sum_{t=1}^T \left(\hat{y}^{(t)} - \bar{y}\right)^2
-\end{equation}
-
-where $\bar{y} = \frac{1}{T}\sum_{t=1}^T \hat{y}^{(t)}$. Queries with high variance are those where the model's internal representation is fragile---small perturbations to the network produce large swings in the output. These are precisely the queries that would benefit most from having their true labels revealed.
-
-Monte Carlo dropout is more expensive than plain uncertainty sampling because it requires $T$ forward passes instead of one (we use $T = 25$), but the additional cost is modest compared to the cost of a single database execution. The richer uncertainty signal it provides often translates into better sample efficiency, meaning fewer total labels to reach the same accuracy.
-
-
-\subsection{The Training Loop}
-
-Algorithm~\ref{alg:active_learning_full} lays out the full procedure. Ten percent of the query pool is held out for validation and never enters the training set. From the remaining ninety percent, twenty percent is sampled at random to form the initial labeled set $\mathcal{L}_0$. This seed needs to be large enough for the model to learn a reasonable baseline---too small and the first round of acquisition scores will be noisy and uninformative.
-
-\begin{algorithm}[htbp]
-\caption{Active Learning for Cardinality Estimation}
-\label{alg:active_learning_full}
-\begin{algorithmic}[1]
-\State Set aside 10\% of all queries as a fixed validation set
-\State From the remaining queries, randomly pick 20\% as the initial training set
-\State Obtain true cardinalities for the initial training set by running them on the database
-\State Create a new MSCN model
-\For{each active learning round}
-    \State Train the model on all currently labeled queries
-    \State Measure the model's accuracy on the validation set
-    \State Use the chosen strategy to score each unlabeled query by how informative it would be
-    \State Select the top-scoring queries and obtain their true cardinalities from the database
-    \State Add the newly labeled queries to the training set
-\EndFor
-\State \Return the trained model and accuracy metrics
-\end{algorithmic}
-\end{algorithm}
-
-In each round, the model is trained from scratch on all currently labeled data, then evaluated on the held-out validation set to track progress. The acquisition function scores every remaining unlabeled query, and the top $k$ are selected for labeling. Once labeled, they join the training set and the loop advances.
-
-Over the course of several rounds, the training set grows from a random seed into a curated collection that emphasizes the hardest, most informative queries. Early rounds tend to add queries from underrepresented regions of the feature space---unusual join patterns, extreme selectivities, edge cases that the random seed missed. Later rounds zero in on the remaining pockets of uncertainty, progressively tightening the model's estimates.
-
-The total labeling cost is straightforward to compute. Let $N$ be the total query pool and $k$ the per-round batch size. The pipeline labels $\lfloor 0.1 \times N \rfloor$ queries for validation, $\lfloor 0.2 \times 0.9N \rfloor$ for the initial seed, and $R \times k$ across $R$ active learning rounds. Everything else stays unlabeled, representing computation that was never spent.
-
-
-\subsection{Why Active Learning Matters Here}
-
-Active learning is not new, but the cardinality estimation problem is an unusually good fit for it. Labels are genuinely expensive: each one requires a live database execution, and complex joins can consume significant CPU and I/O resources, so reducing the label count by even thirty or forty percent has a real impact on wall-clock time. At the same time, the query space is vast and unevenly important---a three-table join with rare predicates is far more informative than yet another single-table scan with a common filter, but random sampling treats them equally. An acquisition function that recognizes this asymmetry builds a much more efficient training set.
-
-What makes active learning particularly effective here is that the model's uncertainty signal is reliable. MSCN's sigmoid output and dropout layers provide a meaningful measure of what the model does and does not know. Unlike settings where the model is confidently wrong, the uncertainty estimates in cardinality estimation tend to correlate well with actual prediction error. That correlation is what allows the acquisition function to consistently pick queries that genuinely improve the model, rather than wasting labels on queries the model already handles well.

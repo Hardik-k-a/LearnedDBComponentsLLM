@@ -3,7 +3,7 @@ query_generator.py
 Generates unlabeled SQL queries using Ollama LLM and converts them
 to MSCN-compatible structured format.
 
-Does NOT execute any query on the database — only generates query structures.
+Does NOT execute any query on the database - only generates query structures.
 Includes schema-aware validation to reject invalid queries before they
 enter the pipeline.
 """
@@ -16,7 +16,7 @@ from typing import List, Dict, Optional, Tuple, Set
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Schema Validator — parses DDL and validates queries without DB access
+# Schema Validator - parses DDL and validates queries without DB access
 # ═══════════════════════════════════════════════════════════════════════════
 
 class SchemaValidator:
@@ -24,7 +24,7 @@ class SchemaValidator:
     Parses a DDL schema text (CREATE TABLE statements) into a structured
     representation and validates SQL queries against it.
 
-    No database connection is needed — all validation is purely in-memory.
+    No database connection is needed - all validation is purely in-memory.
     """
 
     # Column types considered numeric (predicates allowed)
@@ -398,7 +398,7 @@ class SchemaValidator:
                 return False, "Multi-table query without join conditions"
 
         else:
-            # No WHERE clause — only valid for single-table queries
+            # No WHERE clause - only valid for single-table queries
             if len(alias_to_table) > 1:
                 return False, "Multi-table query without WHERE clause"
 
@@ -453,8 +453,8 @@ Generate exactly {batch_size} SQL queries. Each query MUST follow these STRICT r
 3. Use proper table aliases (e.g., title_basics tb)
 4. For multi-table queries, ALWAYS include join conditions using ONLY the VALID JOIN CONDITIONS listed above
 5. Include 0-4 filter predicates using ONLY =, <, > operators
-6. Use ONLY [NUMERIC] columns for filter predicates — NEVER use [TEXT] columns in predicates
-7. Use ONLY integer numeric values in predicates — NEVER use string values like 'Drama' or 'Action'
+6. Use ONLY [NUMERIC] columns for filter predicates - NEVER use [TEXT] columns in predicates
+7. Use ONLY integer numeric values in predicates - NEVER use string values like 'Drama' or 'Action'
 8. ALL conditions in WHERE must be connected with AND only
 9. Do NOT use OR, IN, LIKE, IS NULL, IS NOT NULL, BETWEEN, NOT, subqueries, DISTINCT, HAVING, GROUP BY, ORDER BY, LIMIT
 10. Each predicate must be a simple: alias.column operator integer_value (e.g., tb.startYear > 2000)
@@ -465,10 +465,10 @@ EXAMPLES OF VALID QUERIES:
 {{"sql": "SELECT COUNT(*) FROM title_basics tb, title_principals tp, name_basics nb WHERE tb.tconst = tp.tconst AND tp.nconst = nb.nconst AND tb.startYear > 1990"}}
 
 EXAMPLES OF INVALID QUERIES (DO NOT GENERATE THESE):
-- Using text columns: WHERE tb.genres = 'Drama'  (WRONG — genres is TEXT)
-- Using string values: WHERE tb.primaryTitle = 'Inception'  (WRONG — string value)
-- Missing join: SELECT COUNT(*) FROM title_basics tb, title_ratings tr WHERE tr.num_votes > 100  (WRONG — no join condition)
-- Using OR: WHERE tb.startYear > 2000 OR tb.runtimeMinutes < 90  (WRONG — uses OR)
+- Using text columns: WHERE tb.genres = 'Drama'  (WRONG - genres is TEXT)
+- Using string values: WHERE tb.primaryTitle = 'Inception'  (WRONG - string value)
+- Missing join: SELECT COUNT(*) FROM title_basics tb, title_ratings tr WHERE tr.num_votes > 100  (WRONG - no join condition)
+- Using OR: WHERE tb.startYear > 2000 OR tb.runtimeMinutes < 90  (WRONG - uses OR)
 
 {diversity_hint}
 

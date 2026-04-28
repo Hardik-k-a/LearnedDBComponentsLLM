@@ -10,7 +10,7 @@ This thesis addresses the challenge of **cardinality estimation** in database qu
 
 ### 1.1 Background: Cardinality Estimation in Databases
 
-Cardinality estimation—predicting the number of rows returned by a SQL query—is a foundational problem in query optimization. Database query planners rely on cardinality estimates to:
+Cardinality estimation-predicting the number of rows returned by a SQL query-is a foundational problem in query optimization. Database query planners rely on cardinality estimates to:
 
 - **Select optimal join orders**: A planner evaluates multiple execution plans and chooses the one with the lowest estimated cost.
 - **Allocate resources**: Memory, CPU, and I/O are provisioned based on cardinality predictions.

@@ -3,20 +3,7 @@
 \label{chap:approach}
 \pagestyle{plain}
 
-Training a learned cardinality estimator well requires two things that are at odds with each other: a large, diverse set of labeled queries and a limited budget for obtaining those labels. Each label demands executing a query on a live database, which is slow and expensive. This chapter lays out our strategy for resolving that tension. We first describe the qualities that make the proposed framework practical for real research, then walk through the pipeline that ties query generation, labeling, feature extraction, active learning, and evaluation into one continuous workflow.
-
-
-\section{Why This Framework}
-
-Several properties set this framework apart from earlier efforts at learned cardinality estimation.
-
-The pipeline is schema-agnostic. Hand it a set of table definitions, column types, and foreign key relationships and it will generate queries, validate them, extract features, and train a model without a single line of manual configuration. Swap the IMDB schema for a retail database and the same code runs unchanged. That kind of portability matters because learned estimators are only useful if they can be retrained cheaply when the schema or the data evolves.
-
-Every stage of the pipeline is designed as a replaceable module. The query generator currently calls a locally hosted Llama model through Ollama, but swapping it for GPT-4 or a template-based generator requires changing one configuration flag, not rewriting the pipeline. The same is true of the acquisition strategy used during active learning and the neural network architecture used for estimation. Researchers can therefore isolate the effect of any single component without confounding variables from the rest of the system.
-
-Robustness is built in rather than bolted on. Queries that time out are retried with back-off; queries that fail permanently receive a safe fallback label and the pipeline moves on. Thousands of queries can be processed overnight without a human watching the terminal.
-
-Finally, every experiment is fully reproducible. Random seeds propagate through Python, NumPy, and PyTorch. All hyperparameters are logged to disk alongside the results, and timestamped output directories prevent one run from accidentally overwriting another.
+Training a learned cardinality estimator well requires two things that are at odds with each other: a large, diverse set of labeled queries and a limited budget for obtaining those labels. Each label demands executing a query on a live database, which is slow and expensive. This chapter lays out our strategy for resolving that tension. We walk through the pipeline that ties query generation, labeling, feature extraction, active learning, and evaluation into one continuous workflow, and then explain what makes this framework practical for real research.
 
 
 \section{System Architecture}
@@ -81,8 +68,21 @@ Everything starts with query generation. The pipeline feeds the database schema 
 
 Validated queries then need ground truth labels. For each query, the pipeline reconstructs a \texttt{SELECT COUNT(*)} statement, executes it against PostgreSQL, and records the row count. This labeling step is by far the most expensive part of the process: a single complex join can take seconds, and labeling thousands of queries can take hours. It is exactly this cost that makes active learning worthwhile. Instead of labeling every query up front, the pipeline labels only a carefully chosen subset and defers the rest.
 
-Before queries reach the neural network they are converted into fixed-size tensors. Each query is decomposed into three sets---tables, predicates, and joins---and each element is encoded as a combination of one-hot vectors and, for tables, a bitmap that indicates which pre-sampled rows satisfy the query's filters. These bitmaps give the model a window into the actual data distribution, not just the query structure.
+Before queries reach the neural network they are converted into fixed-size tensors. Each query is decomposed into three sets---tables, predicates, and joins---and each element is encoded as a combination of one-hot vectors and, for tables, a bitmap that indicates which pre-sampled rows satisfy the query's filters. These bitmaps give the model a window into the actual data distribution, not just the query structure. The complete encoding process and MSCN architecture are described in Chapter~\ref{chap:training_approach}.
 
-The active learning loop ties everything together. It begins by randomly labeling a small seed set, trains the MSCN model on that seed, then asks: which of the remaining unlabeled queries would teach the model the most? The acquisition function scores every candidate, the top-scoring queries are labeled and added to the training set, and the model is retrained. This cycle repeats for several rounds. Each round the model gets a little better, and each round it gets better at deciding what to learn next. Three acquisition strategies are supported---random, uncertainty-based, and Monte Carlo dropout---each representing a different trade-off between computation and sample efficiency. The complete training methodology, network architecture, and active learning strategies are detailed in Chapter~\ref{chap:training_approach}.
+The active learning loop ties everything together. It begins by randomly labeling a small seed set, trains the MSCN model on that seed, then asks: which of the remaining unlabeled queries would teach the model the most? The acquisition function scores every candidate, the top-scoring queries are labeled and added to the training set, and the model is retrained. This cycle repeats for several rounds. Each round the model gets a little better, and each round it gets better at deciding what to learn next. Three acquisition strategies are supported---random, uncertainty-based, and Monte Carlo dropout---each representing a different trade-off between computation and sample efficiency. Chapter~\ref{chap:active_learning} presents the active learning framework in detail.
 
 The final stage produces a dashboard of diagnostic plots: learning curves showing how accuracy improves with each round, scatter plots of predicted versus actual cardinalities, Q-error distributions, and workload diversity profiles. These visualizations make it straightforward to judge both the quality of the generated data and the performance of the trained estimator. Experimental results are presented in Chapter~\ref{chap:experiments}.
+
+
+\section{Why This Framework}
+
+Several properties set this framework apart from earlier efforts at learned cardinality estimation.
+
+The pipeline is schema-agnostic. Hand it a set of table definitions, column types, and foreign key relationships and it will generate queries, validate them, extract features, and train a model without a single line of manual configuration. Swap the IMDB schema for a retail database and the same code runs unchanged. That kind of portability matters because learned estimators are only useful if they can be retrained cheaply when the schema or the data evolves.
+
+Every stage of the pipeline is designed as a replaceable module. The query generator currently calls a locally hosted Llama model through Ollama, but swapping it for GPT-4 or a template-based generator requires changing one configuration flag, not rewriting the pipeline. The same is true of the acquisition strategy used during active learning and the neural network architecture used for estimation. Researchers can therefore isolate the effect of any single component without confounding variables from the rest of the system.
+
+Robustness is built in rather than bolted on. Queries that time out are retried with back-off; queries that fail permanently receive a safe fallback label and the pipeline moves on. Thousands of queries can be processed overnight without a human watching the terminal.
+
+Finally, every experiment is fully reproducible. Random seeds propagate through Python, NumPy, and PyTorch. All hyperparameters are logged to disk alongside the results, and timestamped output directories prevent one run from accidentally overwriting another.

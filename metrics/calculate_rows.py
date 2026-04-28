@@ -61,7 +61,7 @@ def calculate_rows(queries, json_path: Path = None):
                 q["exec_error_msg"] = f"Timeout after {DB_TIMEOUT} ms"
 
                 if q["exec_attempts"] < MAX_RETRIES:
-                    logger.warning(f"Timeout on {q['id']} — retrying")
+                    logger.warning(f"Timeout on {q['id']} - retrying")
                     time.sleep(SLEEP_ON_ERROR)
                 else:
                     q["exec_status"] = "failed"
@@ -71,7 +71,7 @@ def calculate_rows(queries, json_path: Path = None):
                 q["exec_error_msg"] = str(e)
 
                 if q["exec_attempts"] < MAX_RETRIES:
-                    logger.warning(f"Error on {q['id']} — retrying: {e}")
+                    logger.warning(f"Error on {q['id']} - retrying: {e}")
                     time.sleep(SLEEP_ON_ERROR)
                 else:
                     q["exec_status"] = "failed"

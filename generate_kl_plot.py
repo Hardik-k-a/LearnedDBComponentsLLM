@@ -60,7 +60,7 @@ def kl_divergence(p, q):
     return entropy(list(p.values()), list(q.values()))
 
 
-# Real workload queries — typical analytical queries on the actual schema
+# Real workload queries - typical analytical queries on the actual schema
 # Column names: title_basics(tconst, titletype, primarytitle, originaltitle, isadult, startyear, endyear, runtimeminutes, genres)
 # title_ratings(tconst, average_rating, num_votes), title_akas(titleid, ordering, title, region, language, types, attributes, isoriginaltitle)
 # title_principals(tconst, ordering, nconst, category, job, characters), title_episode(const, parenttconst, seasonnumber, episodenumber)
@@ -93,7 +93,7 @@ REAL_WORKLOAD_QUERIES = [
     "SELECT COUNT(*) FROM title_ratings WHERE average_rating BETWEEN 5.0 AND 7.0",
 ]
 
-# Simulated LLM-generated queries — LLMs tend to generate simpler, 
+# Simulated LLM-generated queries - LLMs tend to generate simpler, 
 # more uniform queries that often have medium selectivity
 LLM_GENERATED_QUERIES = [
     "SELECT COUNT(*) FROM title_basics WHERE startyear > 2000",

@@ -403,7 +403,7 @@ def plot_pipeline_summary(labeled_sizes, median_errors, all_epoch_losses,
         ax.text(0.5, 0.5, "No labeling data", ha='center', va='center', fontsize=12)
         ax.set_title("Labeling Outcome")
 
-    fig.suptitle(f"Pipeline Summary — {strategy.upper()} Strategy", fontsize=14, fontweight='bold')
+    fig.suptitle(f"Pipeline Summary - {strategy.upper()} Strategy", fontsize=14, fontweight='bold')
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     _save(fig, output_dir, "analysis_pipeline_summary.png")
 

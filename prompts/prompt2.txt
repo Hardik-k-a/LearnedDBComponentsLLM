@@ -25,5 +25,5 @@ Rules:
 8. Ensure SQL uses SELECT only (no DDL/DML) and returns columns appropriate for the query.
 9. Return the final output as compact JSON only (no extra commentary or explanation).
 10. Use consistent quoting for string literals (single quotes).
-11. **Return ONLY valid JSON output** — no text, no explanations, no markdown.
+11. **Return ONLY valid JSON output** - no text, no explanations, no markdown.
 Produce the JSON array now.
