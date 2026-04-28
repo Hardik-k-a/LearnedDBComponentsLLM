@@ -886,8 +886,8 @@ def main():
                            help="Number of total queries to generate (default: 5000)")
     gen_group.add_argument("--batch-size-gen", type=int, default=20,
                            help="LLM generation batch size (default: 20)")
-    gen_group.add_argument("--model-name", type=str, default="llama3.2",
-                           help="Ollama model for generation (default: llama3.2)")
+    gen_group.add_argument("--model-name", type=str, default="llama3.2:3b",
+                           help="Ollama model for generation (default: llama3.2:3b)")
     gen_group.add_argument("--ollama-url", type=str, default="http://206.1.53.104:11434",
                            help="Ollama API URL")
     gen_group.add_argument("--schema-file", type=str, default="../TryingModels/schema/IMDB_schema.txt",
