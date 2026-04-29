@@ -8,18 +8,18 @@ Getting from a pile of validated SQL queries to a neural network that estimates 
 
 \section{Database Labeling}
 
-Every supervised model needs labels. In our setting a label is the true cardinality of a query---the number of rows it returns. Obtaining that number means actually running the query: reconstructing a \texttt{SELECT COUNT(*)} statement from the query's tables, joins, and predicates, submitting it to PostgreSQL, and recording the result.
+Every supervised model needs labels. In our setting a label is the true cardinality of a query the number of rows it returns. Obtaining that number means actually running the query: reconstructing a \texttt{SELECT COUNT(*)} statement from the query's tables, joins, and predicates, submitting it to PostgreSQL, and recording the result.
 
 This sounds straightforward, but at scale it is the dominant bottleneck of the entire pipeline. A single three-table join over tens of millions of rows can take seconds. Multiply that by a few thousand queries and the labeling stage alone can consume hours of compute. Some queries never finish at all: they hit pathological join orderings or blow up intermediate result sizes, making them impractical to execute within any reasonable time budget.
 
 The pipeline handles these cases pragmatically. Each query runs under a timeout. If it does not finish, it is retried once with a longer deadline. If it still fails, it receives a fallback cardinality of one, the smallest value that keeps the log-scale normalization well-defined. This fallback introduces a small amount of noise into the training data, but in practice the fraction of queries that reach it is low enough that the model's overall accuracy is not materially affected.
 
-The expense of labeling is the single strongest argument for active learning. If every label costs real compute, then choosing which queries to label is not just a nice optimization---it is the difference between a pipeline that finishes overnight and one that runs for days.
+The expense of labeling is the single strongest argument for active learning. If every label costs real compute, then choosing which queries to label is not just a nice optimization it is the difference between a pipeline that finishes overnight and one that runs for days.
 
 
 \section{Feature Extraction and Bitmap Generation}
 
-The MSCN architecture expects three fixed-size tensors as input---one for tables, one for predicates, one for joins---but real queries have variable numbers of each. A single-table query has one table entry and zero joins; a three-table query with five filters has three table entries, two joins, and five predicates. The encoding stage bridges this gap through zero-padding and masking.
+The MSCN architecture expects three fixed-size tensors as input one for tables, one for predicates, one for joins but real queries have variable numbers of each. A single-table query has one table entry and zero joins; a three-table query with five filters has three table entries, two joins, and five predicates. The encoding stage bridges this gap through zero-padding and masking.
 
 First, the system scans every query in the pool and builds four sorted vocabularies: one mapping each unique table name to a one-hot index, one for predicate columns, one for comparison operators, and one for join conditions. Sorting alphabetically guarantees that the same schema always produces the same encoding, regardless of the order in which queries were generated.
 
@@ -29,7 +29,7 @@ Each table entry in a query is encoded by concatenating its one-hot vector with 
 \mathbf{s}_i = [\text{onehot}(t_i) \| \text{bitmap}(t_i)] \in \mathbb{R}^{|T| + n_{\text{samples}}}
 \end{equation}
 
-The bitmap is where the encoding gets interesting. At startup the pipeline samples a fixed set of rows from each table---typically one thousand---and holds them in memory. For each query, the system checks which sampled rows satisfy the query's filter predicates and sets the corresponding bit to one. The result is a compact binary vector that tells the model how selective a query's filters are on a small but representative slice of the actual data. Without this signal the model would have to infer selectivity purely from the query structure, which is far harder.
+The bitmap is where the encoding gets interesting. At startup the pipeline samples a fixed set of rows from each table typically one thousand and holds them in memory. For each query, the system checks which sampled rows satisfy the query's filter predicates and sets the corresponding bit to one. The result is a compact binary vector that tells the model how selective a query's filters are on a small but representative slice of the actual data. Without this signal the model would have to infer selectivity purely from the query structure, which is far harder.
 
 Each predicate $(c_j, op_j, v_j)$ is encoded as:
 
@@ -155,4 +155,4 @@ We train and evaluate with Q-error, the standard metric in cardinality estimatio
 Q(p, a) = \max\left(\frac{p}{a}, \frac{a}{p}\right)
 \end{equation}
 
-A Q-error of one means a perfect estimate. A Q-error of ten means the prediction is off by a factor of ten, whether it overestimates or underestimates. This symmetry is important: a query optimizer cares about the magnitude of the error, not its direction. Q-error is also scale-invariant---being wrong by a factor of two carries the same penalty whether the true cardinality is a hundred or a million.
+A Q-error of one means a perfect estimate. A Q-error of ten means the prediction is off by a factor of ten, whether it overestimates or underestimates. This symmetry is important: a query optimizer cares about the magnitude of the error, not its direction. Q-error is also scale-invariant being wrong by a factor of two carries the same penalty whether the true cardinality is a hundred or a million.

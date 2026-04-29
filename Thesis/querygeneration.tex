@@ -17,7 +17,7 @@ We host the LLM locally through the Ollama platform. Local hosting means that no
 
 \section{Prompt Design}
 
-The quality of what the LLM produces depends almost entirely on the prompt. Ours is structured as a five-part template, illustrated in Figure~\ref{fig:prompt_structure}. The first part assigns a role: ``You are a SQL query workload generator for a database.'' This framing primes the model to produce queries rather than explanations or tutorials. The second part injects the full database schema as DDL statements---table names, columns, data types, foreign keys---so the model knows what it is allowed to reference. The third part supplies column statistics: minimum and maximum values for numeric columns, which help the model pick predicate values that fall within realistic ranges rather than guessing wildly.
+The quality of what the LLM produces depends almost entirely on the prompt. Ours is structured as a five-part template, illustrated in Figure~\ref{fig:prompt_structure}. The first part assigns a role: ``You are a SQL query workload generator for a database.'' This framing primes the model to produce queries rather than explanations or tutorials. The second part injects the full database schema as DDL statements table names, columns, data types, foreign keys so the model knows what it is allowed to reference. The third part supplies column statistics: minimum and maximum values for numeric columns, which help the model pick predicate values that fall within realistic ranges rather than guessing wildly.
 
 \begin{figure}[htbp]
 \centering
@@ -52,7 +52,7 @@ The fifth part specifies the output format: a JSON array where each element has 
 
 \section{Keeping the Workload Diverse}
 
-Left to its own devices, an LLM tends to fall into patterns. After a few batches it may start recycling the same join structures or predicate styles, a problem sometimes called mode collapse. We counteract this with a rotating set of diversity hints. Five hints cycle in sequence: one pushes the model toward single-table queries with varied filters, another toward two-table joins, a third toward three-table joins, a fourth toward a mix of point lookups and range scans, and a fifth toward extreme selectivities---queries returning either a handful of rows or millions. The hint index advances with each batch, so over the course of a full generation run every style gets equal representation.
+Left to its own devices, an LLM tends to fall into patterns. After a few batches it may start recycling the same join structures or predicate styles, a problem sometimes called mode collapse. We counteract this with a rotating set of diversity hints. Five hints cycle in sequence: one pushes the model toward single-table queries with varied filters, another toward two-table joins, a third toward three-table joins, a fourth toward a mix of point lookups and range scans, and a fifth toward extreme selectivities queries returning either a handful of rows or millions. The hint index advances with each batch, so over the course of a full generation run every style gets equal representation.
 
 Generating all queries in one prompt would blow past the model's context window and collapse diversity. Instead, the system works in batches. The total query target is divided by the batch size, and each batch gets a fresh prompt with the current diversity hint. Algorithm~\ref{alg:batch_generation} outlines the procedure.
 
@@ -76,7 +76,7 @@ Generating all queries in one prompt would blow past the model's context window 
 \end{algorithmic}
 \end{algorithm}
 
-Because LLM output is stochastic, any individual call can fail---network hiccups, malformed JSON, the model hallucinating prose instead of SQL. Each batch is therefore retried up to three times. In practice this pushes the success rate close to one hundred percent.
+Because LLM output is stochastic, any individual call can fail network hiccups, malformed JSON, the model hallucinating prose instead of SQL. Each batch is therefore retried up to three times. In practice this pushes the success rate close to one hundred percent.
 
 
 \section{Filtering Out Bad Queries}

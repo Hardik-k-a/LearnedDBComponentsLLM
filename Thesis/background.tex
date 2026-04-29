@@ -13,19 +13,19 @@ This limitation has motivated the exploration of learned database systems, where
 
 \section{MSCN and Deep Learning-based Estimation}
 
-One important advancement in the area of learning-based query cardinality estimation is the development of a new technique called Multi-Set Convolutional Network (MSCN), proposed by Kipf et al. in\cite{DBLP:conf/cidr/KipfKRLBK19}. The technique reformulates query cardinality estimation as a supervised learning task, where query result sizes are estimated based on query structures.
+One important advancement in the area of learning-based query cardinality estimation is the development of a new technique called Multi-Set Convolutional Network (MSCN), proposed by Kipf et al.~\cite{DBLP:conf/cidr/KipfKRLBK19}. The technique reformulates query cardinality estimation as a supervised learning task, where query result sizes are estimated based on query structures.
 
 The basic idea behind the MSCN technique is that it represents queries in the form of sets. Unlike traditional methods, where a query is simply represented as a string of characters, MSCN represents a query as three different sets, namely tables, joins, and predicates. Each set is processed separately using shared layers of a neural network. The basic idea behind this is to make the query invariant to the ordering of query components, which is important because the semantics of a query do not depend on the order in which tables and predicates are listed.
 
 The other key feature of the MSCN is its use of bitmap-based sampling. In the process, a subset of the tuples in a given base table is sampled, and the predicates are applied to the sample to produce bitmaps. The bitmaps then represent the query predicates that are satisfied, and this additional information helps the model to better account for the correlations between the predicates and the data.
 
-In addition, the MSCN uses normalization to ensure that the cardinality estimates are within a certain range that can be learned by the model. This is crucial, especially considering that the cardinality estimates can differ considerably across queries.The MSCN uses loss functions that involve relative errors, as opposed to absolute errors, which is more appropriate for query optimization tasks.
+In addition, the MSCN uses normalization to ensure that the cardinality estimates are within a certain range that can be learned by the model. This is crucial, especially considering that the cardinality estimates can differ considerably across queries. The MSCN uses loss functions that involve relative errors, as opposed to absolute errors, which is more appropriate for query optimization tasks.
 
 Despite its strong performance, MSCN depends heavily on labeled training data. Each training example requires a query and its true cardinality, which is obtained by executing the query on a database. As query complexity increases, the cost of execution grows significantly, making it difficult to scale the training process. This limitation highlights a fundamental challenge in learned database systems: the high cost of data generation. In addition, the reliance on execution makes it difficult to quickly generate new training data when schemas or workloads change.
 
 \section{Workload Sensitivity and Challenges}
 
-The performance of learned cardinality estimators not only depends on the architecture used but also on the nature and characteristics of the training workload. The study conducted by Wang et al. \cite{DBLP:journals/pvldb/WangQWWZ21} offers a comprehensive analysis on how different query properties influence the performance of learned cardinality estimators.
+The performance of learned cardinality estimators not only depends on the architecture used but also on the nature and characteristics of the training workload. The study conducted by Wang et al.~\cite{DBLP:journals/pvldb/WangQWWZ21} offers a comprehensive analysis on how different query properties influence the performance of learned cardinality estimators.
 
 For example, a learned model may not perform well when it is tested on queries that have different types of predicates, such as range predicates, when it is only trained on queries that have equality predicates. Similarly, a query may have high selectivity and join complexity, causing a large estimation error. This example again emphasizes that the training data should be highly diverse.
 
@@ -33,7 +33,7 @@ Another important aspect to be considered is related to workload shift, where th
 
 \section{LLM-based SQL Generation}
 
-Recently, large language models have been recognized as effective means for generating structured data. In this regard, the SQLStorm framework\cite{DBLP:journals/pvldb/SchmidtLBN25} has been presented to show that LLMs can be effectively used to produce large volumes of varied and realistic SQL queries. In this regard, the SQLStorm framework exploits the capabilities of schema-informed prompting to produce varied and realistic queries.
+Recently, large language models have been recognized as effective means for generating structured data. In this regard, the SQLStorm framework~\cite{DBLP:journals/pvldb/SchmidtLBN25} has been presented to show that LLMs can be effectively used to produce large volumes of varied and realistic SQL queries. In this regard, the SQLStorm framework exploits the capabilities of schema-informed prompting to produce varied and realistic queries.
 
 Unlike other query generation techniques that are based on template-based and rule-based approaches, LLMs can be effectively used to produce queries that can capture a wide range of query patterns. This is one of the main reasons that LLMs can be effectively used to produce training datasets for learning-based query generation techniques. In addition to this, LLMs can be effectively used to produce queries that are not included in existing workloads. This allows for the exploration of new query patterns.
 
@@ -43,16 +43,26 @@ Although LLMs can be effectively used to produce queries, they do not have the c
 
 \section{Generative AI for Database Components}
 
-The base paper \cite{DBLP:journals/corr/abs-2512-20271} attempts to address this data generation bottleneck through a framework that utilizes generative models to automatically generate training data for learned database components. The basic idea is to utilize LLMs to automatically generate realistic SQL queries, thereby reducing reliance on manually collected query logs.
+Recent foundational work by Davitkova and Michel~\cite{DBLP:journals/corr/abs-2512-20271} attempts to address this data generation bottleneck through a framework that utilizes generative models to automatically generate training data for learned database components. The basic idea is to utilize LLMs to automatically generate realistic SQL queries, thereby reducing reliance on manually collected query logs.
 This is a major departure from the traditional way learned database systems have been designed. By automating query generation, it is possible to generate large and varied datasets to support a wide range of query types. The framework also outlines how generative models can be incorporated into the learning pipeline to support data generation.
 
 An important contribution of this work is the structured pipeline it proposes, where query generation, validation, execution, and model training are integrated into a unified framework. This pipeline ensures that generated queries are not only diverse but also executable and meaningful within the given schema. The use of prompt engineering and iterative refinement further improves the quality of generated queries.
 
 One limitation of this framework is that it relies on executing the generated queries to obtain ground truth labels. While query generation is now automated, label generation is computationally intensive and thus limits scalability. This is where a completely synthetic method is proposed, where query and label generation can be performed without relying on database execution. This shift represents a natural evolution of the framework, aiming to remove the remaining bottleneck in the data generation process.
 
+\section{Uncertainty Quantification via Monte Carlo Dropout}
+
+The ability to quantify the uncertainty of a machine learning model's predictions is crucial for deciding whether a given estimate can be trusted. In the context of neural networks, one of the most effective techniques for uncertainty quantification is Monte Carlo (MC) dropout. To understand MC dropout, it is first necessary to examine the theoretical foundations of standard dropout.
+
+Dropout was originally introduced as a regularization technique to prevent overfitting. As formally analyzed by Baldi and Sadowski~\cite{DBLP:journals/ai/BaldiS14}, dropout forces neurons to become robust and rely on population behavior rather than co-adapting with specific units. Their theoretical framework demonstrates that applying dropout to a neural network essentially performs a geometric averaging over an ensemble of all possible subnetworks. By stochastically dropping units during training, the network is trained as a massive ensemble, and during standard inference, weight scaling approximates this ensemble average.
+
+While standard dropout is turned off during inference, Gal and Ghahramani~\cite{gal2016dropout} demonstrated that keeping dropout active during prediction allows the network to function as a Bayesian approximation. By running multiple forward passes for the same input with different dropout masks, the network produces a distribution of predictions. The variance across these predictions serves as a principled measure of the model's epistemic uncertainty.
+
+However, a major limitation of MC dropout is its computational cost. Running dozens of forward passes for every query during inference introduces significant overhead, which has traditionally limited its use in performance-critical applications. Recent advancements have sought to address this bottleneck. For instance, Srinivasan~\cite{Srinivasan2024Efficient} introduced a model-splitting technique that significantly accelerates MC dropout inference. By recognizing that dropout is often only applied to the final layers (the model head), the deterministic lower layers (the model body) only need to be executed once. The intermediate activations are then passed repeatedly through the stochastic head, yielding a potential 25x to 33x speedup. This makes MC dropout practically viable for rapid, millisecond-level uncertainty quantification, enabling its use in dynamic environments like active learning for database query optimization.
+
 \section{Active Learning for Data Efficiency}
 
-Active learning helps in developing a framework for improving data efficiency, which can be done through the selection of the best data samples for learning. As discussed in \cite{DBLP:journals/tnn/LiWCJDO25}, not all data samples are equally important in improving the performance of the model. This way, it is possible to attain high accuracy with less data.
+Active learning helps in developing a framework for improving data efficiency, which can be done through the selection of the best data samples for learning. As discussed by Li et al.~\cite{DBLP:journals/tnn/LiWCJDO25}, not all data samples are equally important in improving the performance of the model. This way, it is possible to attain high accuracy with less data.
 
 In the context of LQE using learned cardinality estimation, active learning helps in improving the efficiency of the process of query labeling. Instead of labeling all the generated queries, the model can be improved through the selection of the best queries in improving the performance of the model. This selection of the best queries can be done using the uncertainty of the model.
 
@@ -62,7 +72,7 @@ The integration of active learning with the process of synthetic data generation
 
 \section{Data Diversity, Personas, and KL Divergence}
 
-Diversity in the generated data is a critical factor to be taken into consideration for the training of strong models. The PAARS\cite{DBLP:journals/corr/abs-2503-24228} framework proposes the use of personas for generating diverse and realistic data. Personas help in the simulation of diverse behavior, which enables the generation of diverse data.
+Diversity in the generated data is a critical factor to be taken into consideration for the training of strong models. The PAARS framework~\cite{DBLP:journals/corr/abs-2503-24228} proposes the use of personas for generating diverse and realistic data. Personas help in the simulation of diverse behavior, which enables the generation of diverse data.
 
 In order to test the quality of the generated data, the PAARS framework uses the KL divergence as a similarity metric between the generated data and real-world data. The KL divergence is a measure of the dissimilarity between two probability distributions, which can be used to test the similarity between the generated data and real-world data, especially in the case of SQL queries.
 

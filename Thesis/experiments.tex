@@ -262,11 +262,11 @@ Figure~\ref{fig:pipeline_summary} shows the full pipeline dashboard, pulling tog
 \label{fig:pipeline_summary}
 \end{figure}
 
-A few observations stand out. The validation pipeline rejects only a small fraction of LLM-generated queries, which confirms that the prompt constraints are doing their job. The structural distributions---table counts, join counts, predicate counts---are well spread rather than clustered around a single pattern, evidence that the diversity hints prevent the LLM from falling into repetitive generation.
+A few observations stand out. The validation pipeline rejects only a small fraction of LLM-generated queries, which confirms that the prompt constraints are doing their job. The structural distributions table counts, join counts, predicate counts are well spread rather than clustered around a single pattern, evidence that the diversity hints prevent the LLM from falling into repetitive generation.
 
 The cardinality distribution spans several orders of magnitude, from queries returning a handful of rows to queries returning millions. That breadth is important: a model trained only on mid-range cardinalities would struggle with the extremes, and extremes are precisely where estimation errors cause the most damage to query plans.
 
-The learning curves tell the clearest story about active learning. Accuracy improves with each round, and the improvement is front-loaded---the first few rounds contribute the most because the acquisition function targets the low-hanging fruit, the queries that are easiest for the model to learn from. Later rounds bring smaller gains as the remaining unlabeled pool becomes dominated by queries the model already handles reasonably well.
+The learning curves tell the clearest story about active learning. Accuracy improves with each round, and the improvement is front-loaded the first few rounds contribute the most because the acquisition function targets the low-hanging fruit, the queries that are easiest for the model to learn from. Later rounds bring smaller gains as the remaining unlabeled pool becomes dominated by queries the model already handles reasonably well.
 
 The scatter plots and Q-error distributions confirm that the trained model produces well-calibrated estimates across the full range. Comparing against PostgreSQL's native optimizer puts the learned approach in perspective: the MSCN model, trained on a modest number of labeled queries, can match or beat an optimizer that has access to the full table statistics and histogram infrastructure built into a production database.
 

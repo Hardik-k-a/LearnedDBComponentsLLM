@@ -38,9 +38,13 @@ This framework introduces a structured pipeline that integrates query generation
 
 Despite these advancements, the framework still depends on executing queries to obtain ground truth labels. While generation is automated, labeling remains computationally expensive, limiting scalability. This highlights a critical gap: existing approaches have automated query generation but have not eliminated the dependency on execution-based labeling.
 
-\section{AL for Efficient Data Utilization}
+\section{Active Learning and Uncertainty Quantification}
 
-Active learning provides a complementary approach to improving data efficiency in supervised learning systems. Recent advances in deep active learning~\cite{DBLP:journals/tnn/LiWCJDO25} show that selecting informative samples can significantly reduce the amount of labeled data required for training.
+Active learning provides a complementary approach to improving data efficiency in supervised learning systems. Recent advances in deep active learning~\cite{DBLP:journals/tnn/LiWCJDO25} show that selecting informative samples can significantly reduce the amount of labeled data required for training. A core mechanism for this selection is uncertainty quantification, which allows a model to identify the inputs it is least confident about.
+
+A theoretically grounded method for estimating neural network uncertainty is Monte Carlo (MC) dropout. The regularizing and averaging properties of dropout were fundamentally established by Baldi and Sadowski~\cite{DBLP:journals/ai/BaldiS14}, who demonstrated that dropout acts as a computationally efficient approximation of an exponentially large ensemble of subnetworks. By retaining dropout during inference, models can produce varied predictions for the same input, providing a direct measure of epistemic uncertainty.
+
+While MC dropout provides high-quality uncertainty estimates, its repeated forward passes introduce severe computational bottlenecks. This issue is particularly problematic when querying large unlabeled pools during active learning. To address this, Srinivasan~\cite{Srinivasan2024Efficient} recently explored model-splitting techniques that partition the network into a deterministic body and a stochastic head. This architectural optimization achieves up to a 33x speedup in inference, transforming MC dropout from a theoretically appealing concept into a highly practical tool for rapid uncertainty quantification.
 
 In the context of learned cardinality estimation, active learning can be used to minimize the number of queries that need to be executed for labeling. By prioritizing queries where the model is uncertain or performs poorly, it is possible to achieve high accuracy with fewer labeled samples.
 

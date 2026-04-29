@@ -7,14 +7,14 @@
 
 This thesis set out to answer a practical question: can we train a cardinality estimator well while keeping the number of expensive database executions manageable? The answer, based on our experiments, is yes. By combining LLM-based query generation with active learning, we built a pipeline that reaches competitive estimation accuracy using a fraction of the labels that a fully supervised approach would require.
 
-Several pieces had to come together to make this work. The LLM-based generator, guided by structured prompts and diversity hints, produced workloads with enough variety in join patterns, predicate types, and selectivity profiles to give the model broad coverage of the query space. The four-layer validation filter caught the inevitable mistakes---hallucinated columns, forbidden keywords, malformed syntax---before they could corrupt the training data. And the active learning loop, particularly with Monte Carlo dropout as the acquisition function, proved effective at steering the labeling budget toward the queries that mattered most.
+Several pieces had to come together to make this work. The LLM-based generator, guided by structured prompts and diversity hints, produced workloads with enough variety in join patterns, predicate types, and selectivity profiles to give the model broad coverage of the query space. The four-layer validation filter caught the inevitable mistakes hallucinated columns, forbidden keywords, malformed syntax before they could corrupt the training data. And the active learning loop, particularly with Monte Carlo dropout as the acquisition function, proved effective at steering the labeling budget toward the queries that mattered most.
 
-The result is a schema-agnostic, end-to-end system. Point it at a new database, give it a schema file, and it generates queries, validates them, labels the most informative ones, trains the estimator, and produces a diagnostic dashboard---all without manual intervention.
+The result is a schema-agnostic, end-to-end system. Point it at a new database, give it a schema file, and it generates queries, validates them, labels the most informative ones, trains the estimator, and produces a diagnostic dashboard all without manual intervention.
 
 
 \section{Limitations}
 
-The framework as it stands has clear boundaries. The MSCN encoder supports only conjunctive queries---\texttt{SELECT COUNT(*)} with AND-connected comparisons over numeric columns. Queries with \texttt{OR}, subqueries, \texttt{GROUP BY}, or string predicates are outside its reach. Extending the encoder to handle richer SQL fragments would require changes to both the feature extraction and the prompt constraints.
+The framework as it stands has clear boundaries. The MSCN encoder supports only conjunctive queries \texttt{SELECT COUNT(*)} with AND-connected comparisons over numeric columns. Queries with \texttt{OR}, subqueries, \texttt{GROUP BY}, or string predicates are outside its reach. Extending the encoder to handle richer SQL fragments would require changes to both the feature extraction and the prompt constraints.
 
 The experiments were conducted on a single benchmark dataset (IMDB). While the pipeline is schema-agnostic by design, we have not yet verified how well the trained models generalize across different data distributions or schema structures. A retail database with skewed foreign key distributions might pose challenges that IMDB does not.
 
@@ -25,10 +25,10 @@ Finally, the fallback cardinality assigned to timed-out queries introduces noise
 
 \section{Directions for Future Work}
 
-The most natural next step is extending the query fragment. Supporting disjunctions, \texttt{LIKE} predicates, and basic aggregations would make the estimator applicable to a much wider range of real workloads. This would require rethinking the encoding scheme, but the rest of the pipeline---generation, validation, active learning---would carry over with relatively minor modifications.
+The most natural next step is extending the query fragment. Supporting disjunctions, \texttt{LIKE} predicates, and basic aggregations would make the estimator applicable to a much wider range of real workloads. This would require rethinking the encoding scheme, but the rest of the pipeline generation, validation, active learning would carry over with relatively minor modifications.
 
 Cross-schema transfer is another promising direction. If a model trained on IMDB could be fine-tuned for a retail database using only a handful of labels, the practical value of the system would increase substantially. Meta-learning and domain adaptation techniques are worth exploring here.
 
-On the active learning side, combining uncertainty with diversity---selecting queries that are both individually uncertain and collectively cover different parts of the feature space---could improve sample efficiency further. Multi-objective acquisition functions that balance exploration, exploitation, and computational cost are a natural fit.
+On the active learning side, combining uncertainty with diversity selecting queries that are both individually uncertain and collectively cover different parts of the feature space could improve sample efficiency further. Multi-objective acquisition functions that balance exploration, exploitation, and computational cost are a natural fit.
 
 From a systems perspective, integrating the learned estimator into a live query optimizer and measuring the end-to-end impact on query execution time would close the loop between estimation accuracy and actual system performance. The current evaluation uses Q-error as a proxy, but what ultimately matters is whether better estimates lead to better plans.

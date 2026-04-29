@@ -7,13 +7,13 @@
 
 \section{Problem Statement}
 
-Query optimization in relational databases hinges on cardinality estimation---predicting how many rows a query will return before actually executing it. Get the estimate right and the optimizer picks a fast execution plan. Get it wrong and the plan can be orders of magnitude slower than necessary. Traditional estimators lean on assumptions like attribute independence and uniform value distributions that rarely hold in practice, and the resulting errors compound across joins, leading to plans that are far from optimal.
+Query optimization in relational databases hinges on cardinality estimation predicting how many rows a query will return before actually executing it. Get the estimate right and the optimizer picks a fast execution plan. Get it wrong and the plan can be orders of magnitude slower than necessary. Traditional estimators lean on assumptions like attribute independence and uniform value distributions that rarely hold in practice, and the resulting errors compound across joins, leading to plans that are far from optimal.
 
 Over the past few years, learned cardinality estimators have shown that neural networks can do a better job. The Multi-Set Convolutional Network (MSCN) by Kipf et al.~\cite{DBLP:conf/cidr/KipfKRLBK19} demonstrated that a relatively simple deep learning model can capture cross-table correlations that rule-based estimators miss entirely. But learned models come with their own cost: they need large quantities of labeled training data, and each label requires executing a query on a live database to record its true row count. On a complex schema this execution-based labeling can take hours, making it the dominant bottleneck in any pipeline that trains learned estimators from scratch.
 
 Meanwhile, large language models have become remarkably good at generating SQL. Work like SQLStorm~\cite{DBLP:journals/pvldb/SchmidtLBN25} has shown that LLMs can produce diverse, realistic query workloads at scale when given a schema and a well-crafted prompt. But generating queries is only half the problem. Those queries still need to be executed to obtain labels, and that execution cost remains.
 
-The question this thesis addresses is: can we close the loop---generate a large, diverse pool of queries with an LLM, then use active learning to pick only the most informative ones for labeling---so that we get a good estimator without paying the full cost of executing every query in the pool?
+The question this thesis addresses is: can we close the loop generate a large, diverse pool of queries with an LLM, then use active learning to pick only the most informative ones for labeling so that we get a good estimator without paying the full cost of executing every query in the pool?
 
 \section{Proposed Approach}
 
