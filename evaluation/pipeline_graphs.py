@@ -186,7 +186,7 @@ def plot_learning_curve(labeled_sizes, median_errors, strategy, output_dir):
     # Annotate improvement
     if len(median_errors) >= 2:
         improvement = (median_errors[0] - median_errors[-1]) / median_errors[0] * 100
-        ax.annotate(f"{improvement:.1f}% improvement",
+        ax.annotate(f"{improvement:.1f}% improvement in median Q-error",
                     xy=(labeled_sizes[-1], median_errors[-1]),
                     xytext=(labeled_sizes[-1] * 0.7, median_errors[0] * 0.8),
                     arrowprops=dict(arrowstyle='->', color='green'),
