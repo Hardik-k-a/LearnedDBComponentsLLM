@@ -14,6 +14,8 @@ import time
 import requests
 from typing import List, Dict, Optional, Tuple, Set
 
+from generation.format_converter import parse_sql_to_mscn
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Schema Validator - parses DDL and validates queries without DB access
@@ -449,7 +451,7 @@ Here are the column statistics (min, max values):
 
 Generate exactly {batch_size} SQL queries. Each query MUST follow these STRICT rules:
 1. Use SELECT COUNT(*) FROM ... WHERE ... format ONLY
-2. Use 1-3 tables from the schema above
+2. Use 1-5 tables from the schema above
 3. Use proper table aliases (e.g., title_basics tb)
 4. For multi-table queries, ALWAYS include join conditions using ONLY the VALID JOIN CONDITIONS listed above
 5. Include 0-4 filter predicates using ONLY =, <, > operators
@@ -470,6 +472,9 @@ EXAMPLES OF INVALID QUERIES (DO NOT GENERATE THESE):
 - Missing join: SELECT COUNT(*) FROM title_basics tb, title_ratings tr WHERE tr.num_votes > 100  (WRONG - no join condition)
 - Using OR: WHERE tb.startYear > 2000 OR tb.runtimeMinutes < 90  (WRONG - uses OR)
 
+STRUCTURAL TARGETS:
+{structure_hint}
+
 {diversity_hint}
 
 Return ONLY a JSON array of objects, each with a "sql" field:
@@ -479,6 +484,199 @@ Return ONLY a JSON array of objects, each with a "sql" field:
   ...
 ]
 """
+
+
+JOIN_PRIORITY_ORDER = [1, 2, 0, 3, 4]
+JOIN_TARGET_RATIOS = {
+    1: 0.36,
+    2: 0.28,
+    0: 0.18,
+    3: 0.12,
+    4: 0.06,
+}
+
+
+def get_join_count(sql: str) -> Optional[int]:
+    """Return the number of join predicates in a SQL query."""
+    parsed = parse_sql_to_mscn(sql)
+    if not parsed:
+        return None
+    return len(parsed.get("joins", []))
+
+
+def build_structure_hint(batch_size: int, current_join_counts: Optional[Dict[int, int]] = None) -> str:
+    """Build an explicit join-count target for the next batch."""
+    current_join_counts = current_join_counts or {}
+    total_existing = sum(current_join_counts.values())
+    target_total_after_batch = total_existing + batch_size
+
+    desired_batch = {}
+    assigned = 0
+    for join_count in JOIN_PRIORITY_ORDER:
+        desired_total = round(target_total_after_batch * JOIN_TARGET_RATIOS[join_count])
+        needed = max(desired_total - current_join_counts.get(join_count, 0), 0)
+        desired_batch[join_count] = min(needed, batch_size - assigned)
+        assigned += desired_batch[join_count]
+
+    for join_count in JOIN_PRIORITY_ORDER:
+        if assigned >= batch_size:
+            break
+        desired_batch[join_count] += 1
+        assigned += 1
+
+    lines = [
+        "Prefer joined queries over single-table queries.",
+        "Desired frequency order by join count: 1 join > 2 joins > 0 joins > 3 joins > 4 joins.",
+        "When possible, match this approximate batch composition:",
+    ]
+    for join_count in JOIN_PRIORITY_ORDER:
+        table_count = join_count + 1
+        lines.append(
+            f"- {desired_batch[join_count]} queries with {join_count} joins ({table_count} tables)"
+        )
+    lines.append("If the schema cannot support a target exactly, stay as close as possible while preserving validity and diversity.")
+    return "\n".join(lines)
+
+
+def select_queries_by_join_priority(
+    sqls: List[str],
+    batch_size: int,
+    current_join_counts: Optional[Dict[int, int]] = None,
+) -> Tuple[List[str], Dict[int, int]]:
+    """Pick queries from a candidate batch to match the preferred join-count mix."""
+    current_join_counts = current_join_counts or {}
+    target_total_after_batch = sum(current_join_counts.values()) + batch_size
+
+    desired_totals = {
+        join_count: round(target_total_after_batch * JOIN_TARGET_RATIOS[join_count])
+        for join_count in JOIN_PRIORITY_ORDER
+    }
+    desired_batch = {
+        join_count: max(desired_totals[join_count] - current_join_counts.get(join_count, 0), 0)
+        for join_count in JOIN_PRIORITY_ORDER
+    }
+
+    buckets: Dict[int, List[str]] = {join_count: [] for join_count in JOIN_PRIORITY_ORDER}
+    overflow: List[str] = []
+    for sql in sqls:
+        join_count = get_join_count(sql)
+        if join_count in buckets:
+            buckets[join_count].append(sql)
+        else:
+            overflow.append(sql)
+
+    selected = []
+    seen = set()
+
+    for join_count in JOIN_PRIORITY_ORDER:
+        for sql in buckets[join_count][:desired_batch[join_count]]:
+            if sql not in seen:
+                selected.append(sql)
+                seen.add(sql)
+            if len(selected) >= batch_size:
+                break
+        if len(selected) >= batch_size:
+            break
+
+    for join_count in JOIN_PRIORITY_ORDER:
+        for sql in buckets[join_count]:
+            if sql in seen:
+                continue
+            selected.append(sql)
+            seen.add(sql)
+            if len(selected) >= batch_size:
+                break
+        if len(selected) >= batch_size:
+            break
+
+    for sql in overflow:
+        if sql in seen:
+            continue
+        selected.append(sql)
+        seen.add(sql)
+        if len(selected) >= batch_size:
+            break
+
+    selected_counts = {}
+    for sql in selected:
+        jc = get_join_count(sql)
+        if jc is not None:
+            selected_counts[jc] = selected_counts.get(jc, 0) + 1
+
+    deficits = {}
+    for join_count in JOIN_PRIORITY_ORDER:
+        want = desired_batch.get(join_count, 0)
+        have = selected_counts.get(join_count, 0)
+        if want > have:
+            deficits[join_count] = want - have
+
+    return selected, deficits
+
+
+def generate_targeted_queries_for_join_count(
+    join_count: int,
+    need: int,
+    schema_text: str,
+    stats_text: str,
+    model_name: str,
+    ollama_url: str,
+    schema_validator: Optional[SchemaValidator],
+    max_attempts: int = 3,
+) -> List[str]:
+    """Generate additional queries targeting an exact join count to fill deficits."""
+    if need <= 0:
+        return []
+
+    if schema_validator is not None:
+        schema_for_prompt = schema_validator.get_schema_summary_for_prompt()
+    else:
+        schema_for_prompt = schema_text
+
+    table_count = join_count + 1
+    targeted_hint = (
+        f"Critical target: return EXACTLY {need} queries with EXACTLY {join_count} joins "
+        f"(i.e., about {table_count} joined tables) as much as schema allows."
+    )
+
+    prompt = GENERATION_PROMPT.format(
+        schema=schema_for_prompt,
+        stats=stats_text or "No specific stats available.",
+        batch_size=max(int(need * 2.5), need + 4),
+        structure_hint=targeted_hint,
+        diversity_hint="Hint: prioritize complex valid join paths and keep filters simple.",
+    )
+
+    accepted = []
+    seen = set()
+    for _ in range(max_attempts):
+        raw_response = call_ollama(prompt, model_name, ollama_url)
+        if raw_response is None:
+            continue
+
+        queries_json = extract_json_array(raw_response)
+        if queries_json is None:
+            continue
+
+        for q in queries_json:
+            if not (isinstance(q, dict) and "sql" in q):
+                continue
+            sql = q["sql"]
+            if sql in seen:
+                continue
+            if schema_validator is not None:
+                is_valid, _ = schema_validator.validate_query(sql)
+                if not is_valid:
+                    continue
+            jc = get_join_count(sql)
+            if jc != join_count:
+                continue
+
+            seen.add(sql)
+            accepted.append(sql)
+            if len(accepted) >= need:
+                return accepted
+
+    return accepted
 
 
 def validate_sql(sql: str, schema_validator: Optional['SchemaValidator'] = None) -> bool:
@@ -566,7 +764,8 @@ def generate_queries_batch(batch_size: int,
                             ollama_url: str = "http://localhost:11434",
                             existing_count: int = 0,
                             max_retries: int = 3,
-                            schema_validator: Optional[SchemaValidator] = None) -> List[str]:
+                            schema_validator: Optional[SchemaValidator] = None,
+                            current_join_counts: Optional[Dict[int, int]] = None) -> List[str]:
     """
     Generate a batch of SQL queries using Ollama.
     If a SchemaValidator is provided, each query is validated against the schema
@@ -582,6 +781,7 @@ def generate_queries_batch(batch_size: int,
 
     hint_idx = (existing_count // batch_size) % len(diversity_hints)
     diversity_hint = f"Hint: {diversity_hints[hint_idx]}"
+    structure_hint = build_structure_hint(batch_size, current_join_counts)
 
     # Use the enhanced schema summary if validator is available
     if schema_validator is not None:
@@ -590,12 +790,13 @@ def generate_queries_batch(batch_size: int,
         schema_for_prompt = schema_text
 
     # Request extra queries to compensate for validation rejections
-    request_size = int(batch_size * 1.3) if schema_validator else batch_size
+    request_size = max(int(batch_size * 1.8), batch_size + 4) if schema_validator else batch_size
 
     prompt = GENERATION_PROMPT.format(
         schema=schema_for_prompt,
         stats=stats_text or "No specific stats available.",
         batch_size=request_size,
+        structure_hint=structure_hint,
         diversity_hint=diversity_hint,
     )
 
@@ -627,7 +828,47 @@ def generate_queries_batch(batch_size: int,
             print(f"[query_generator] Batch {attempt + 1}: accepted {len(sqls)}, rejected {rejected}")
 
         if sqls:
-            return sqls[:batch_size]  # Trim to requested size
+            selected_sqls, deficits = select_queries_by_join_priority(sqls, batch_size, current_join_counts)
+
+            # Targeted refill for missing buckets, prioritizing more informative join counts first.
+            refill_priority = [2, 1, 3, 4, 0]
+            for target_jc in refill_priority:
+                if len(selected_sqls) >= batch_size:
+                    break
+                need = deficits.get(target_jc, 0)
+                if need <= 0:
+                    continue
+                extra = generate_targeted_queries_for_join_count(
+                    join_count=target_jc,
+                    need=min(need, batch_size - len(selected_sqls)),
+                    schema_text=schema_text,
+                    stats_text=stats_text,
+                    model_name=model_name,
+                    ollama_url=ollama_url,
+                    schema_validator=schema_validator,
+                )
+                for sql in extra:
+                    if sql not in selected_sqls:
+                        selected_sqls.append(sql)
+                    if len(selected_sqls) >= batch_size:
+                        break
+
+            # Final backfill if targeted generation still couldn't fill the batch.
+            if len(selected_sqls) < batch_size:
+                for sql in sqls:
+                    if sql in selected_sqls:
+                        continue
+                    selected_sqls.append(sql)
+                    if len(selected_sqls) >= batch_size:
+                        break
+
+            selected_join_counts = {}
+            for sql in selected_sqls:
+                join_count = get_join_count(sql)
+                if join_count is not None:
+                    selected_join_counts[join_count] = selected_join_counts.get(join_count, 0) + 1
+            print(f"[query_generator] Selected join mix: {selected_join_counts}")
+            return selected_sqls
 
     print(f"[query_generator] All {max_retries} attempts failed for batch")
     return []
@@ -663,6 +904,7 @@ def generate_all_queries(total_queries: int,
     print(f"[query_generator] Generating {total_queries} queries in {num_batches} batches...")
 
     consecutive_empty = 0
+    current_join_counts: Dict[int, int] = {}
     for b in range(num_batches * 2):  # Allow extra batches to compensate for rejections
         remaining = total_queries - len(all_sqls)
         current_batch_size = min(batch_size, remaining)
@@ -684,12 +926,18 @@ def generate_all_queries(total_queries: int,
             ollama_url=ollama_url,
             existing_count=len(all_sqls),
             schema_validator=schema_validator,
+            current_join_counts=current_join_counts,
         )
 
         if sqls:
             all_sqls.extend(sqls)
+            for sql in sqls:
+                join_count = get_join_count(sql)
+                if join_count is not None:
+                    current_join_counts[join_count] = current_join_counts.get(join_count, 0) + 1
             consecutive_empty = 0
             print(f"[query_generator] Got {len(sqls)} valid queries (total: {len(all_sqls)})")
+            print(f"[query_generator] Running join mix: {current_join_counts}")
         else:
             consecutive_empty += 1
             print(f"[query_generator] Empty batch ({consecutive_empty} consecutive)")
@@ -698,6 +946,17 @@ def generate_all_queries(total_queries: int,
 
     all_sqls = all_sqls[:total_queries]
     print(f"[query_generator] Generation complete: {len(all_sqls)} valid queries")
+
+    # Save generated queries to disk for inspection / reuse
+    import json, os, datetime
+    save_dir = os.path.join("generated_queries")
+    os.makedirs(save_dir, exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_path = os.path.join(save_dir, f"queries_{timestamp}.json")
+    with open(save_path, "w", encoding="utf-8") as f:
+        json.dump(all_sqls, f, indent=2)
+    print(f"[query_generator] Queries saved to: {save_path}")
+
     return all_sqls
 
 

@@ -33,6 +33,8 @@ app_logs/
 # Data files (large)
 data/
 workloads/
+output/
+generated_queries/
 
 /.vscode
 __pycache__
