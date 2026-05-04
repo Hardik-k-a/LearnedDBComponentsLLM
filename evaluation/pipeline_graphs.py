@@ -640,7 +640,25 @@ def plot_pg_vs_mscn_comparison(pg_estimates, mscn_estimates, test_labels, output
     fig.savefig(out_file, dpi=150, bbox_inches='tight')
     plt.close(fig)
 
-    # 2. Plot Scatter
+    # 2. Plot Quantile Line Chart (same data perspective as CDF, flipped axes)
+    fig_line, ax_line = plt.subplots(figsize=(8, 6))
+    quantiles = np.arange(1, len(pg_qerrors_sorted) + 1) / len(pg_qerrors_sorted) * 100.0
+
+    ax_line.plot(quantiles, pg_qerrors_sorted, linewidth=2.5, color='#e74c3c', label='PostgreSQL Estimates')
+    ax_line.plot(quantiles, mscn_qerrors_sorted, linewidth=2.5, color='#3498db', label='Final MSCN Model')
+
+    ax_line.set_xlabel('Query Quantile (%)')
+    ax_line.set_ylabel('Q-Error (log scale)')
+    ax_line.set_title('Q-Error by Query Quantile: PostgreSQL vs MSCN')
+    ax_line.set_yscale('log')
+    ax_line.grid(True, alpha=0.3, which='both')
+    ax_line.legend()
+
+    out_file_line = os.path.join(output_dir, 'compare_pg_vs_mscn_qerror_line.png')
+    fig_line.savefig(out_file_line, dpi=150, bbox_inches='tight')
+    plt.close(fig_line)
+
+    # 3. Plot Scatter
     fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     max_val_plot = max(max(labels), max(pg_est), max(mscn_est)) * 2
     min_val_plot = max(1, min(min(labels), min(pg_est), min(mscn_est)) / 2)

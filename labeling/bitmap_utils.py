@@ -99,7 +99,8 @@ def generate_bitmap_for_query(cursor,
                                query_predicates: List[Tuple],
                                materialized_samples: Dict[str, np.ndarray],
                                table_primary_keys: Dict[str, str],
-                               num_samples: int = 1000) -> np.ndarray:
+                               num_samples: int = 1000,
+                               timeout_ms: int = 60000) -> np.ndarray:
     """
     Generate bitmap for a single query.
 
@@ -149,8 +150,10 @@ def generate_bitmap_for_query(cursor,
 
         try:
             sql = f"SELECT {pk_col} FROM {table_name} WHERE {where_clause}"
+            cursor.execute("SET statement_timeout = %s;", (timeout_ms,))
             cursor.execute(sql, (sample_pks.tolist(),))
             matching_pks = set(r[0] for r in cursor.fetchall())
+            cursor.execute("SET statement_timeout = 0;")
             cursor.connection.commit()
 
             bitmap = np.array(
@@ -166,6 +169,10 @@ def generate_bitmap_for_query(cursor,
         except Exception as e:
             print(f"[bitmap_utils] Error generating bitmap for {table_name}: {e}")
             cursor.connection.rollback()
+            try:
+                cursor.execute("SET statement_timeout = 0;")
+            except Exception:
+                pass
             bitmaps.append(np.zeros(num_samples, dtype=np.float32))
 
     return np.array(bitmaps, dtype=np.float32)
@@ -175,7 +182,8 @@ def generate_bitmaps_for_queries(cursor,
                                   queries: List[Dict],
                                   materialized_samples: Dict[str, np.ndarray],
                                   table_primary_keys: Dict[str, str],
-                                  num_samples: int = 1000) -> List[np.ndarray]:
+                                  num_samples: int = 1000,
+                                  timeout_ms: int = 60000) -> List[np.ndarray]:
     """
     Generate bitmaps for a batch of queries.
     """
@@ -191,7 +199,8 @@ def generate_bitmaps_for_queries(cursor,
             q["predicates"],
             materialized_samples,
             table_primary_keys,
-            num_samples
+            num_samples,
+            timeout_ms
         )
         bitmaps.append(bitmap)
 

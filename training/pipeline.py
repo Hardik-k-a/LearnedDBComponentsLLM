@@ -24,6 +24,7 @@ import csv
 import time
 import random
 import numpy as np
+from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -46,6 +47,7 @@ from labeling.bitmap_utils import (
 )
 from generation.query_generator import generate_all_queries, generate_synthetic_queries, validate_sql, SchemaValidator
 from evaluation.pipeline_graphs import generate_all_graphs, plot_pg_vs_mscn_comparison
+from utils.io_utils import read_json_file
 
 import matplotlib
 matplotlib.use('Agg')
@@ -372,6 +374,135 @@ def compute_qerrors(preds_norm, labels_norm, min_val, max_val):
     return np.maximum(preds_unnorm / labels_unnorm, labels_unnorm / preds_unnorm)
 
 
+def _get_boolean_columns(cursor):
+    """Return set of public boolean columns as {'table.column', ...}."""
+    sql = """
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND data_type = 'boolean';
+    """
+    try:
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        cursor.connection.commit()
+        return {f"{tbl.lower()}.{col.lower()}" for tbl, col in rows}
+    except Exception as e:
+        print(f"WARNING: Could not load boolean column metadata: {e}")
+        try:
+            cursor.connection.rollback()
+        except Exception:
+            pass
+        return set()
+
+
+def _normalize_boolean_predicates(queries, boolean_columns):
+    """
+    Normalize boolean predicate values for DB compatibility.
+    Converts 0/1-like values to FALSE/TRUE for known boolean columns.
+    """
+    if not boolean_columns:
+        return 0
+
+    true_vals = {"1", "true", "t", "yes", "y"}
+    false_vals = {"0", "false", "f", "no", "n"}
+    converted = 0
+
+    for q in queries:
+        alias_to_table = {}
+        for table_entry in q.get("tables", []):
+            parts = table_entry.strip().split()
+            if not parts:
+                continue
+            table_name = parts[0].lower()
+            alias = parts[1].lower() if len(parts) > 1 else table_name
+            alias_to_table[alias] = table_name
+
+        new_preds = []
+        for pred in q.get("predicates", []):
+            if len(pred) != 3:
+                new_preds.append(pred)
+                continue
+
+            col, op, val = pred
+            col_parts = str(col).split('.', 1)
+            if len(col_parts) != 2:
+                new_preds.append(pred)
+                continue
+
+            alias = col_parts[0].lower()
+            column_name = col_parts[1].lower()
+            table_name = alias_to_table.get(alias)
+            full_col = f"{table_name}.{column_name}" if table_name else None
+
+            if full_col in boolean_columns and op in ("=", "!=", "<>"):
+                v = str(val).strip().strip("'\"").lower()
+                if v in true_vals:
+                    new_preds.append((col, op, "TRUE"))
+                    converted += 1
+                    continue
+                if v in false_vals:
+                    new_preds.append((col, op, "FALSE"))
+                    converted += 1
+                    continue
+
+            new_preds.append(pred)
+
+        q["predicates"] = new_preds
+
+    return converted
+
+
+def _find_latest_generated_query_file(generated_queries_dir):
+    """Return latest generated query file path, or None if not found."""
+    base_dir = Path(generated_queries_dir)
+    if not base_dir.exists():
+        return None
+
+    candidates = list(base_dir.glob("queries_*.json"))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
+def _load_queries_from_file(file_path, max_queries=None):
+    """
+    Load and parse generated queries from JSON/JSONL formats.
+    Returns (parsed_queries, raw_count).
+    """
+    raw_queries = read_json_file(str(file_path))
+    if not isinstance(raw_queries, list):
+        raise ValueError(f"Query file must contain a list, got: {type(raw_queries).__name__}")
+
+    parsed_queries = []
+    for item in raw_queries:
+        parsed = None
+        if isinstance(item, str):
+            parsed = parse_sql_to_mscn(item)
+            if parsed is not None:
+                parsed["sql"] = item
+        elif isinstance(item, dict) and all(k in item for k in ("tables", "joins", "predicates")):
+            parsed = {
+                "tables": item["tables"],
+                "joins": item["joins"],
+                "predicates": item["predicates"],
+                "sql": item.get("sql"),
+            }
+        elif isinstance(item, dict) and "sql" in item:
+            parsed = parse_sql_to_mscn(item["sql"])
+            if parsed is not None:
+                parsed["sql"] = item["sql"]
+
+        if parsed is not None:
+            parsed["cardinality"] = None
+            parsed_queries.append(parsed)
+
+    if max_queries is not None and max_queries > 0:
+        parsed_queries = parsed_queries[:max_queries]
+
+    return parsed_queries, len(raw_queries)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # MAIN PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════
@@ -424,62 +555,95 @@ def run_pipeline(args):
         skipped_validation = 0
         skipped_parse = 0
     else:
-        print(f"Using LLM generation via Ollama ({args.model_name})")
-        
-        # Load schema and optionally stats
-        try:
-            with open(args.schema_file, 'r') as f:
-                schema_text = f.read()
-        except Exception as e:
-            print(f"ERROR: Could not read schema file '{args.schema_file}': {e}")
-            return
-            
-        stats_text = ""
-        if args.stats_file:
-            try:
-                with open(args.stats_file, 'r') as f:
-                    stats_text = f.read()
-            except Exception as e:
-                print(f"WARNING: Could not read stats file '{args.stats_file}': {e}")
-            
-        # Build schema validator for in-memory query validation (no DB needed)
-        schema_validator = SchemaValidator(schema_text, stats_text)
-        print(f"  Schema validator: {len(schema_validator.tables)} tables, "
-              f"{len(schema_validator.numeric_columns)} numeric cols, "
-              f"{len(schema_validator.valid_joins)//2} FK joins")
-
-        raw_sqls = generate_all_queries(
-            total_queries=args.total_queries,
-            schema_text=schema_text,
-            stats_text=stats_text,
-            batch_size=args.batch_size_gen,
-            model_name=args.model_name,
-            ollama_url=args.ollama_url,
-            schema_validator=schema_validator,
-        )
-
-        # Convert SQL strings to structured format
-        # (queries are already schema-validated during generation,
-        #  this is a safety net + format conversion step)
         all_queries = []
+        total_generated = 0
         skipped_validation = 0
-        for sql in raw_sqls:
-            if not validate_sql(sql, schema_validator):
-                skipped_validation += 1
-                continue
-            parsed = parse_sql_to_mscn(sql)
-            if parsed:
-                parsed["cardinality"] = None  # unlabeled
-                all_queries.append(parsed)
-            else:
-                print(f"  [skip-parse] Could not parse: {sql[:80]}...")
-        
-        if skipped_validation > 0:
-            print(f"  Post-generation safety net filtered {skipped_validation} additional queries")
+        skipped_parse = 0
+        used_generated_file = None
 
-        total_generated = len(raw_sqls)
-        valid_count = len(all_queries)
-        skipped_parse = total_generated - valid_count - skipped_validation
+        if args.use_latest_generated:
+            query_file = Path(args.generated_queries_file) if args.generated_queries_file else _find_latest_generated_query_file(args.generated_queries_dir)
+            if query_file is not None and query_file.exists():
+                try:
+                    # Honor --total-queries only when it is explicitly passed in CLI.
+                    # If not explicitly passed, use all queries from the generated file.
+                    max_queries = args.total_queries if getattr(args, "total_queries_explicit", False) else None
+                    loaded_queries, raw_count = _load_queries_from_file(query_file, max_queries=max_queries)
+                    if loaded_queries:
+                        all_queries = loaded_queries
+                        total_generated = raw_count
+                        skipped_parse = max(raw_count - len(loaded_queries), 0)
+                        used_generated_file = str(query_file)
+                        print(f"Using pre-generated queries from: {query_file}")
+                        print(f"  Loaded {len(loaded_queries)} parsed queries from {raw_count} raw entries")
+                    else:
+                        print(f"WARNING: No parseable queries found in {query_file}; falling back to fresh generation")
+                except Exception as e:
+                    print(f"WARNING: Failed to load pre-generated queries from {query_file}: {e}")
+                    print("         Falling back to fresh LLM generation")
+            elif args.generated_queries_file:
+                print(f"WARNING: --generated-queries-file not found: {args.generated_queries_file}")
+                print("         Falling back to fresh LLM generation")
+
+        if not all_queries:
+            print(f"Using LLM generation via Ollama ({args.model_name})")
+
+            # Load schema and optionally stats
+            try:
+                with open(args.schema_file, 'r') as f:
+                    schema_text = f.read()
+            except Exception as e:
+                print(f"ERROR: Could not read schema file '{args.schema_file}': {e}")
+                return
+
+            stats_text = ""
+            if args.stats_file:
+                try:
+                    with open(args.stats_file, 'r') as f:
+                        stats_text = f.read()
+                except Exception as e:
+                    print(f"WARNING: Could not read stats file '{args.stats_file}': {e}")
+
+            # Build schema validator for in-memory query validation (no DB needed)
+            schema_validator = SchemaValidator(schema_text, stats_text)
+            print(f"  Schema validator: {len(schema_validator.tables)} tables, "
+                  f"{len(schema_validator.numeric_columns)} numeric cols, "
+                  f"{len(schema_validator.valid_joins)//2} FK joins")
+
+            raw_sqls = generate_all_queries(
+                total_queries=args.total_queries,
+                schema_text=schema_text,
+                stats_text=stats_text,
+                batch_size=args.batch_size_gen,
+                model_name=args.model_name,
+                ollama_url=args.ollama_url,
+                schema_validator=schema_validator,
+            )
+
+            # Convert SQL strings to structured format
+            # (queries are already schema-validated during generation,
+            #  this is a safety net + format conversion step)
+            all_queries = []
+            skipped_validation = 0
+            for sql in raw_sqls:
+                if not validate_sql(sql, schema_validator):
+                    skipped_validation += 1
+                    continue
+                parsed = parse_sql_to_mscn(sql)
+                if parsed:
+                    parsed["cardinality"] = None  # unlabeled
+                    all_queries.append(parsed)
+                else:
+                    print(f"  [skip-parse] Could not parse: {sql[:80]}...")
+
+            if skipped_validation > 0:
+                print(f"  Post-generation safety net filtered {skipped_validation} additional queries")
+
+            total_generated = len(raw_sqls)
+            valid_count = len(all_queries)
+            skipped_parse = total_generated - valid_count - skipped_validation
+        elif used_generated_file:
+            print("Skipping fresh query generation because reusable generated queries were found")
 
     print(f"Generated {len(all_queries)} valid queries")
 
@@ -488,6 +652,12 @@ def run_pipeline(args):
         cursor.close()
         conn.close()
         return
+
+    # Normalize predicates for DB compatibility (important for reused files)
+    boolean_columns = _get_boolean_columns(cursor)
+    bool_converted = _normalize_boolean_predicates(all_queries, boolean_columns)
+    if bool_converted > 0:
+        print(f"Normalized {bool_converted} boolean predicate values for PostgreSQL")
 
     # ── Build vocabularies from ALL queries (before labeling) ───────────
     print("\n=== STEP 4: Building Vocabularies ===")
@@ -523,7 +693,8 @@ def run_pipeline(args):
     # Generate bitmaps for validation set
     print("Generating bitmaps for validation set...")
     val_bitmaps = generate_bitmaps_for_queries(
-        cursor, val_queries, materialized_samples, table_primary_keys, args.num_materialized_samples
+        cursor, val_queries, materialized_samples, table_primary_keys,
+        args.num_materialized_samples, timeout_ms=args.db_timeout
     )
     
     val_bitmaps_path = os.path.join(results_dir, "val_bitmaps.bitmap")
@@ -554,7 +725,7 @@ def run_pipeline(args):
     print(f"  Rounds: {args.rounds}, Acquire: {args.acquire}, Epochs: {args.epochs}")
 
     # Initial labeled set (20% of total queries)
-    n_initial = min(int(args.total_queries * 0.20), len(pool_indices))
+    n_initial = min(int(n_total * 0.20), len(pool_indices))
     labeled_pool_idx = list(pool_indices[:n_initial])
     unlabeled_pool_idx = list(pool_indices[n_initial:])
 
@@ -569,7 +740,8 @@ def run_pipeline(args):
     # Generate bitmaps for initial set
     print("Generating bitmaps for initial set...")
     initial_bitmaps = generate_bitmaps_for_queries(
-        cursor, initial_queries, materialized_samples, table_primary_keys, args.num_materialized_samples
+        cursor, initial_queries, materialized_samples, table_primary_keys,
+        args.num_materialized_samples, timeout_ms=args.db_timeout
     )
     
     init_bitmaps_path = os.path.join(results_dir, "initial_bitmaps.bitmap")
@@ -782,7 +954,8 @@ def run_pipeline(args):
 
         print(f"  Generating bitmaps for acquired queries...")
         acquired_bitmaps = generate_bitmaps_for_queries(
-            cursor, acquired_queries, materialized_samples, table_primary_keys, args.num_materialized_samples
+            cursor, acquired_queries, materialized_samples, table_primary_keys,
+            args.num_materialized_samples, timeout_ms=args.db_timeout
         )
         
         acquired_bitmaps_path = os.path.join(results_dir, f"acquired_bitmaps_R{r+1}.bitmap")
@@ -896,6 +1069,14 @@ def main():
                            help="Optional path to DB column stats (e.g. from db_utils.py)")
     gen_group.add_argument("--synthetic", action="store_true",
                            help="Use synthetic query generation instead of LLM")
+    gen_group.add_argument("--generated-queries-file", type=str, default="",
+                           help="Optional path to a generated queries file to reuse")
+    gen_group.add_argument("--generated-queries-dir", type=str, default="generated_queries",
+                           help="Directory to search for latest generated queries (default: generated_queries)")
+    gen_group.add_argument("--use-latest-generated", dest="use_latest_generated", action="store_true", default=True,
+                           help="Reuse latest generated queries when available (default: enabled)")
+    gen_group.add_argument("--no-use-latest-generated", dest="use_latest_generated", action="store_false",
+                           help="Disable reusing generated queries and force fresh generation")
 
     # Database
     db_group = parser.add_argument_group("Database")
@@ -939,6 +1120,13 @@ def main():
                         help="Load argument defaults from .env file")
 
     args = parser.parse_args()
+
+    # Track whether --total-queries was explicitly provided by user.
+    # This lets generated-query reuse load all queries unless user asks for a cap.
+    args.total_queries_explicit = any(
+        arg == "--total-queries" or arg.startswith("--total-queries=")
+        for arg in sys.argv[1:]
+    )
 
     # If --env is passed, override defaults with .env values
     if args.env:

@@ -35,6 +35,7 @@ data/
 workloads/
 output/
 generated_queries/
+comparisons_generated/
 
 /.vscode
 __pycache__

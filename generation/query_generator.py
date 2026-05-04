@@ -11,6 +11,9 @@ enter the pipeline.
 import json
 import re
 import time
+import os
+import csv
+from datetime import datetime
 import requests
 from typing import List, Dict, Optional, Tuple, Set
 
@@ -757,6 +760,91 @@ def extract_json_array(text: str) -> Optional[List[Dict]]:
     return None
 
 
+def _distribution(values: List[int]) -> Dict[str, int]:
+    """Build a frequency map with string keys for JSON serialization."""
+    freq: Dict[str, int] = {}
+    for v in values:
+        k = str(v)
+        freq[k] = freq.get(k, 0) + 1
+    return dict(sorted(freq.items(), key=lambda kv: int(kv[0])))
+
+
+def _summarize_sqls(sqls: List[str]) -> Dict[str, object]:
+    """Compute structural metrics from generated SQL strings."""
+    table_counts: List[int] = []
+    join_counts: List[int] = []
+    predicate_counts: List[int] = []
+    parsed_ok = 0
+
+    for sql in sqls:
+        parsed = parse_sql_to_mscn(sql)
+        if not parsed:
+            continue
+        parsed_ok += 1
+        table_counts.append(len(parsed.get("tables", [])))
+        join_counts.append(len(parsed.get("joins", [])))
+        predicate_counts.append(len(parsed.get("predicates", [])))
+
+    def _avg(values: List[int]) -> float:
+        return round(sum(values) / len(values), 4) if values else 0.0
+
+    return {
+        "parsed_query_count": parsed_ok,
+        "avg_tables_per_query": _avg(table_counts),
+        "avg_joins_per_query": _avg(join_counts),
+        "avg_predicates_per_query": _avg(predicate_counts),
+        "tables_distribution": _distribution(table_counts),
+        "joins_distribution": _distribution(join_counts),
+        "predicates_distribution": _distribution(predicate_counts),
+    }
+
+
+def _write_generation_metrics(save_dir: str,
+                              timestamp: str,
+                              summary: Dict[str, object],
+                              structure: Dict[str, object],
+                              stats: Dict[str, object]) -> None:
+    """Write generation metrics artifacts for thesis/reporting."""
+    metrics = {
+        "run_summary": summary,
+        "generation_stats": stats,
+        "structure_metrics": structure,
+    }
+
+    metrics_json_path = os.path.join(save_dir, f"generation_metrics_{timestamp}.json")
+    with open(metrics_json_path, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
+
+    summary_csv_path = os.path.join(save_dir, f"generation_summary_{timestamp}.csv")
+    csv_row = {
+        "timestamp": summary.get("timestamp"),
+        "model_name": summary.get("model_name"),
+        "ollama_url": summary.get("ollama_url"),
+        "requested_queries": summary.get("requested_queries"),
+        "generated_queries": summary.get("generated_queries"),
+        "batch_size": summary.get("batch_size"),
+        "elapsed_seconds": summary.get("elapsed_seconds"),
+        "batches_attempted": stats.get("batches_attempted", 0),
+        "ollama_calls": stats.get("ollama_calls", 0),
+        "json_parse_failures": stats.get("json_parse_failures", 0),
+        "schema_rejections": stats.get("schema_rejections", 0),
+        "accepted_before_selection": stats.get("accepted_before_selection", 0),
+        "selected_after_priority": stats.get("selected_after_priority", 0),
+        "empty_batches": stats.get("empty_batches", 0),
+        "avg_tables_per_query": structure.get("avg_tables_per_query", 0.0),
+        "avg_joins_per_query": structure.get("avg_joins_per_query", 0.0),
+        "avg_predicates_per_query": structure.get("avg_predicates_per_query", 0.0),
+    }
+
+    with open(summary_csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(csv_row.keys()))
+        writer.writeheader()
+        writer.writerow(csv_row)
+
+    print(f"[query_generator] Metrics saved to: {metrics_json_path}")
+    print(f"[query_generator] Summary CSV saved to: {summary_csv_path}")
+
+
 def generate_queries_batch(batch_size: int,
                             schema_text: str,
                             stats_text: str,
@@ -765,7 +853,8 @@ def generate_queries_batch(batch_size: int,
                             existing_count: int = 0,
                             max_retries: int = 3,
                             schema_validator: Optional[SchemaValidator] = None,
-                            current_join_counts: Optional[Dict[int, int]] = None) -> List[str]:
+                            current_join_counts: Optional[Dict[int, int]] = None,
+                            generation_stats: Optional[Dict[str, object]] = None) -> List[str]:
     """
     Generate a batch of SQL queries using Ollama.
     If a SchemaValidator is provided, each query is validated against the schema
@@ -801,6 +890,8 @@ def generate_queries_batch(batch_size: int,
     )
 
     for attempt in range(max_retries):
+        if generation_stats is not None:
+            generation_stats["ollama_calls"] = generation_stats.get("ollama_calls", 0) + 1
         raw_response = call_ollama(prompt, model_name, ollama_url)
         if raw_response is None:
             time.sleep(2)
@@ -809,6 +900,8 @@ def generate_queries_batch(batch_size: int,
         queries_json = extract_json_array(raw_response)
         if queries_json is None:
             print(f"[query_generator] Failed to parse JSON (attempt {attempt + 1})")
+            if generation_stats is not None:
+                generation_stats["json_parse_failures"] = generation_stats.get("json_parse_failures", 0) + 1
             time.sleep(1)
             continue
 
@@ -821,8 +914,15 @@ def generate_queries_batch(batch_size: int,
                     is_valid, reason = schema_validator.validate_query(sql)
                     if not is_valid:
                         rejected += 1
+                        if generation_stats is not None:
+                            generation_stats["schema_rejections"] = generation_stats.get("schema_rejections", 0) + 1
+                            reason_counts = generation_stats.setdefault("rejection_reasons", {})
+                            reason_counts[reason] = reason_counts.get(reason, 0) + 1
                         continue
                 sqls.append(sql)
+
+        if generation_stats is not None:
+            generation_stats["accepted_before_selection"] = generation_stats.get("accepted_before_selection", 0) + len(sqls)
 
         if rejected > 0:
             print(f"[query_generator] Batch {attempt + 1}: accepted {len(sqls)}, rejected {rejected}")
@@ -867,6 +967,8 @@ def generate_queries_batch(batch_size: int,
                 join_count = get_join_count(sql)
                 if join_count is not None:
                     selected_join_counts[join_count] = selected_join_counts.get(join_count, 0) + 1
+            if generation_stats is not None:
+                generation_stats["selected_after_priority"] = generation_stats.get("selected_after_priority", 0) + len(selected_sqls)
             print(f"[query_generator] Selected join mix: {selected_join_counts}")
             return selected_sqls
 
@@ -887,8 +989,19 @@ def generate_all_queries(total_queries: int,
     If schema_validator is provided, queries are validated against the schema
     during generation (not after), ensuring only valid queries are returned.
     """
+    run_start = time.time()
     all_sqls = []
     num_batches = (total_queries + batch_size - 1) // batch_size
+    generation_stats: Dict[str, object] = {
+        "batches_attempted": 0,
+        "empty_batches": 0,
+        "ollama_calls": 0,
+        "json_parse_failures": 0,
+        "schema_rejections": 0,
+        "accepted_before_selection": 0,
+        "selected_after_priority": 0,
+        "rejection_reasons": {},
+    }
 
     # Build schema validator from DDL if not provided
     if schema_validator is None and schema_text:
@@ -906,6 +1019,7 @@ def generate_all_queries(total_queries: int,
     consecutive_empty = 0
     current_join_counts: Dict[int, int] = {}
     for b in range(num_batches * 2):  # Allow extra batches to compensate for rejections
+        generation_stats["batches_attempted"] = generation_stats.get("batches_attempted", 0) + 1
         remaining = total_queries - len(all_sqls)
         current_batch_size = min(batch_size, remaining)
 
@@ -927,6 +1041,7 @@ def generate_all_queries(total_queries: int,
             existing_count=len(all_sqls),
             schema_validator=schema_validator,
             current_join_counts=current_join_counts,
+            generation_stats=generation_stats,
         )
 
         if sqls:
@@ -940,6 +1055,7 @@ def generate_all_queries(total_queries: int,
             print(f"[query_generator] Running join mix: {current_join_counts}")
         else:
             consecutive_empty += 1
+            generation_stats["empty_batches"] = generation_stats.get("empty_batches", 0) + 1
             print(f"[query_generator] Empty batch ({consecutive_empty} consecutive)")
 
         time.sleep(0.5)
@@ -948,14 +1064,27 @@ def generate_all_queries(total_queries: int,
     print(f"[query_generator] Generation complete: {len(all_sqls)} valid queries")
 
     # Save generated queries to disk for inspection / reuse
-    import json, os, datetime
     save_dir = os.path.join("generated_queries")
     os.makedirs(save_dir, exist_ok=True)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     save_path = os.path.join(save_dir, f"queries_{timestamp}.json")
     with open(save_path, "w", encoding="utf-8") as f:
         json.dump(all_sqls, f, indent=2)
     print(f"[query_generator] Queries saved to: {save_path}")
+
+    elapsed = round(time.time() - run_start, 3)
+    summary = {
+        "timestamp": timestamp,
+        "model_name": model_name,
+        "ollama_url": ollama_url,
+        "requested_queries": total_queries,
+        "generated_queries": len(all_sqls),
+        "batch_size": batch_size,
+        "elapsed_seconds": elapsed,
+        "queries_path": save_path,
+    }
+    structure = _summarize_sqls(all_sqls)
+    _write_generation_metrics(save_dir, timestamp, summary, structure, generation_stats)
 
     return all_sqls
 
