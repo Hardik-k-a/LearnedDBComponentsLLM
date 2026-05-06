@@ -160,6 +160,17 @@ python -m evaluation.compare_generated_strategies --strategies random mc_dropout
 python generate_and_plot.py 5000
 ```
 
+### Plot KL Convergence (Generated vs Reference Workload)
+
+```bash
+python tools/kl_convergence_plot.py --reference path/to/real_workload.json --generated generated_queries/queries_YYYY-MM-DD_HH-MM-SS.json --step 100
+```
+
+This command writes both files into `generated_queries/`:
+
+- `*_kl_convergence.csv` (checkpoint-wise KL values)
+- `*_kl_convergence.png` (KL convergence line chart)
+
 ---
 
 ## Key Features
