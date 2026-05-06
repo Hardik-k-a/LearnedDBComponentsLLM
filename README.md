@@ -162,14 +162,32 @@ python generate_and_plot.py 5000
 
 ### Plot KL Convergence (Generated vs Reference Workload)
 
+Convert the JOB-light benchmark to JSON first (one-time step):
+
 ```bash
-python tools/kl_convergence_plot.py --reference path/to/real_workload.json --generated generated_queries/queries_YYYY-MM-DD_HH-MM-SS.json --step 100
+python -c "
+import json; from pathlib import Path
+lines = [l.strip() for l in Path('job-light.sql').read_text(encoding='utf-8').splitlines() if l.strip()]
+Path('real_workload').mkdir(exist_ok=True)
+Path('real_workload/job_light.json').write_text(json.dumps([{'sql': l} for l in lines], indent=2), encoding='utf-8')
+print(f'Converted {len(lines)} queries')
+"
 ```
 
-This command writes both files into `generated_queries/`:
+Then run the comparison:
 
-- `*_kl_convergence.csv` (checkpoint-wise KL values)
-- `*_kl_convergence.png` (KL convergence line chart)
+```bash
+python tools/kl_convergence_plot.py \
+  --reference real_workload/job_light.json \
+  --generated generated_queries/queries_YYYY-MM-DD_HH-MM-SS.json \
+  --step 250
+```
+
+This command writes three files into `generated_queries/`:
+
+- `*_kl_convergence.csv` — checkpoint-wise KL divergence values (tables, joins, predicates, mean)
+- `*_kl_convergence.png` — KL divergence over generation checkpoints (lower = closer to real workload)
+- `*_distribution_comparison.png` — side-by-side bar charts comparing JOB-light vs LLM-generated distributions for tables, joins, and predicates
 
 ---
 

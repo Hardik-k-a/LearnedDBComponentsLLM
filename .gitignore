@@ -35,6 +35,7 @@ data/
 workloads/
 output/
 generated_queries/
+synthetic_queries/
 comparisons_generated/
 
 /.vscode
@@ -49,3 +50,4 @@ TryingModels/schema/imdb_tsvs/
 /TryingModels/app_logs
 /temp
 /pipeline_results
+real_workload/
